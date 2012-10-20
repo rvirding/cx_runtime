@@ -6,5 +6,11 @@ concurix_spawn(Fun) ->
 	spawn(Fun).
 	
 concurix_spawn(Mod, Fun, Args) ->
-	io:format("got spawn with mod fun args ~p ~p ~p ~n", [Mod, Fun, Args]),
-	spawn(Mod, Fun, Args).
+	case ets:lookup(concurix_config, {Mod, Fun, lists:nth(3, Args)}) of
+		[{{Mod, Fun, _}, Size }] ->
+			%%io:format("size ~p ~n", [Size]),
+			spawn_opt(Mod, Fun, Args, [{min_heap_size, Size + 100}]);
+		_X -> 
+			%%io:format("didn't find an entry for MFA ~p ~p ~p ~n", [Mod, Fun, Args]),
+			spawn(Mod, Fun, Args)
+	end.
