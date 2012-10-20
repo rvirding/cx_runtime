@@ -2,7 +2,6 @@
 -export([parse_transform/2]).
 
 parse_transform(AST, Options) ->
-	io:format("~p ~n", [AST]),
 	forms(AST).
 
 
@@ -419,9 +418,7 @@ expr({call,Line,F0,As0}) ->
     %% otherwise apply to "function".
     F1 = expr(F0),
     As1 = expr_list(As0),
-	io:format("FOUND A CALL to ~p with ~p args ~n", [F1, As1]),
 	{call, Line, F2, As2} = concurix_check_call(Line, F1, As1),
-	io:format("MODIFIED CALL to be ~p with ~p args ~n", [F2, As2]),
     {call,Line,F2,As2};
 expr({'catch',Line,E0}) ->
     %% No new variables added.
