@@ -8,7 +8,7 @@ concurix_spawn(Fun) ->
 concurix_spawn(Mod, Fun, Args) ->
 	Size = 190845 - round(163491 * abs(lists:nth(3, Args))),
 	%%io:format("spawn size ~p ~n", [Size]),
-	spawn_opt(Mod, Fun, Args, [{min_heap_size, round(Size/30)}]).
+	spawn_opt(Mod, Fun, Args, [{min_heap_size, round(Size/30) }]).
 		
 concurix_spawn(Mod, Fun, Args, Bogus) ->
 	case ets:lookup(concurix_config, lists:nth(3, Args)) of
