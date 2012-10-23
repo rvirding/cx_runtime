@@ -1,7 +1,9 @@
 {application,concurix_runtime,
              [{description,"Concurix VM Runtime enhancements"},
               {vsn,"0.1"},
-              {modules,[concurix_runtime,concurix_spawn,concurix_transform]},
+              {src_dirs,["./"]},
               {registered,[]},
               {applications,[compiler,kernel,stdlib]},
-              {env,[]}]}.
+              {env,[]},
+              {modules,[concurix_compile,concurix_runtime,concurix_spawn,
+                        concurix_transform]}]}.

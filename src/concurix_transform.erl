@@ -7,8 +7,8 @@ parse_transform(AST, Options) ->
 
 %% putting all of the Concurix specific transforms up here for clarity
 concurix_check_call(Line, {atom, Line2, spawn}, Args) ->
-	F1 = {remote, Line2, {atom, Line2, concurix_spawn}, {atom, Line2, concurix_spawn}},
-    {call,Line,F1,Args};
+	{F1, Args2 } = concurix_compile:handle_spawn(Line2, Args),
+    {call,Line,F1,Args2};
 concurix_check_call(Line, Fun, Args) ->
 	{call, Line, Fun, Args}.
 
