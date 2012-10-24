@@ -1,7 +1,7 @@
 -module(concurix_transform).
 -export([parse_transform/2]).
 
-parse_transform(AST, Options) ->
+parse_transform(AST, _Options) ->
 	forms(AST).
 
 
@@ -9,6 +9,13 @@ parse_transform(AST, Options) ->
 concurix_check_call(Line, {atom, Line2, spawn}, Args) ->
 	{F1, Args2 } = concurix_compile:handle_spawn(Line2, Args),
     {call,Line,F1,Args2};
+concurix_check_call(Line, F = {atom, Line2, LocalFun}, Args) ->
+	Module = get(current_module),
+	{F1, Args2} = concurix_compile:handle_memo(Line2, {Module, LocalFun}, F, Args),
+	{call, Line, F1, Args2};
+concurix_check_call(Line, F = {remote, Line2, {atom, _Line3, Module}, {atom, _Line4, Fun}}, Args) ->
+	{F1, Args2} = concurix_compile:handle_memo(Line2, {Module, Fun}, F, Args),
+	{call, Line, F1, Args2};
 concurix_check_call(Line, Fun, Args) ->
 	{call, Line, Fun, Args}.
 
@@ -26,6 +33,9 @@ forms([]) -> [].
 
 %% First the various attributes.
 form({attribute,Line,module,Mod}) ->
+	%% This is a bit hacky from a pure functional perspective, but for convenience
+	%% we use the process dictionary to stash some parse state we'll need later
+	put(current_module, Mod),
     {attribute,Line,module,Mod};
 form({attribute,Line,file,{File,Line}}) ->	%This is valid anywhere.
     {attribute,Line,file,{File,Line}};

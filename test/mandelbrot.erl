@@ -42,7 +42,6 @@ row(F, X, _, N, Bits, Bytes, BitC) when X =:= N-1 ->
 
 row(F, X, Y2, N, Bits, Bytes, 0) ->
     row(F, X+1, Y2, N, 0, [Bits bsl 1 + m(?ITER, ?SR+X*2/N, Y2) | Bytes], 7);
-
 row(F, X, Y2, N, Bits, Bytes, BitC) ->
     row(F, X+1, Y2, N, Bits bsl 1 + m(?ITER, ?SR+X*2/N, Y2), Bytes, BitC-1).
 
