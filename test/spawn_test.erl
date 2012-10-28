@@ -9,6 +9,11 @@ main(N) ->
 		{'EXIT', _Pid, N} -> ok;
 		X -> X = N   %% deliberately throw an exception here so the test fails
 	end,
+	spawn_monitor(spawn_test, mfaspawnmonitor, [N]),
+	receive
+		{'DOWN', _Ref, _Process, _Pid2, N} -> ok;
+		X2 -> X2 = N   %% deliberately throw an exception here so the test fails
+	end,
 	ok.
 
 mfaspawn(N) ->
@@ -17,5 +22,10 @@ mfaspawn(N) ->
 mfaspawnlink(N) ->
 	io:format("Got mfaspawnlink ok ~p ~n", [N]),
 	exit(N).
+	
+mfaspawnmonitor(N) ->
+	io:format("Got mfaspawnlink ok ~p ~n", [N]),
+	exit(N).
+
 	
 	
