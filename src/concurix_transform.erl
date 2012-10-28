@@ -7,7 +7,13 @@ parse_transform(AST, _Options) ->
 
 %% putting all of the Concurix specific transforms up here for clarity
 concurix_check_call(Line, {atom, Line2, spawn}, Args) ->
-	{F1, Args2 } = concurix_compile:handle_spawn(Line2, Args),
+	{F1, Args2 } = concurix_compile:handle_spawn(Line2, Args, spawn),
+    {call,Line,F1,Args2};
+concurix_check_call(Line, {atom, Line2, spawn_link}, Args) ->
+	{F1, Args2 } = concurix_compile:handle_spawn(Line2, Args, spawn_link),
+    {call,Line,F1,Args2};
+concurix_check_call(Line, {atom, Line2, spawn_monitor}, Args) ->
+	{F1, Args2 } = concurix_compile:handle_spawn(Line2, Args, spawn_monitor),
     {call,Line,F1,Args2};
 concurix_check_call(Line, F = {atom, Line2, LocalFun}, Args) ->
 	Module = get(current_module),

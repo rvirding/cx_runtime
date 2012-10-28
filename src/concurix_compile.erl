@@ -1,5 +1,5 @@
 -module(concurix_compile).
--export([string_to_form/1, string_to_form/2, handle_spawn/2, get_arg_n/2, handle_memo/4]).
+-export([string_to_form/1, string_to_form/2, handle_spawn/3, get_arg_n/2, handle_memo/4]).
 
 string_to_form(String) ->
 	{ok, Tokens, _} = erl_scan:string(String),
@@ -11,20 +11,20 @@ string_to_form(String, CallArgs) ->
 	replace_args(Forms, CallArgs).
 	
 	
-handle_spawn(Line, [{atom, Line2, Module}, {atom, Line3, Fun}, CallArgs]) ->
+handle_spawn(Line, [{atom, Line2, Module}, {atom, Line3, Fun}, CallArgs], Type) ->
 	case ets:lookup(concurix_config_spawn, {Module, Fun}) of
 		[{_, Expr }] ->
 			SpawnFun = {atom, Line, spawn_opt},
-			SpawnOpt = "[{min_heap_size," ++ Expr ++ "}].",
+			SpawnOpt = "[" ++ type_to_string(Type) ++ "{min_heap_size," ++ Expr ++ "}].",
 			ArgsNew = [{atom, Line2, Module}, {atom, Line3, Fun}, CallArgs] ++ string_to_form(SpawnOpt, CallArgs),
 			io:format("concurix_compile: Computed Spawn Opt for ~p:~p with expression ~p ~n",  [Module, Fun, Expr]),
 			{SpawnFun, ArgsNew};			
 		_X -> 
-			{{atom, Line, spawn}, [{atom, Line2, Module}, {atom, Line3, Fun}, CallArgs]}
+			{{atom, Line, Type}, [{atom, Line2, Module}, {atom, Line3, Fun}, CallArgs]}
 	end;
 
-handle_spawn(Line, Args) ->
-	Fun = {atom, Line, spawn},
+handle_spawn(Line, Args, Type) ->
+	Fun = {atom, Line, Type},
 	{Fun, Args}.
 
 
@@ -65,4 +65,10 @@ replace_args(Tuple, CallArgs) when is_tuple(Tuple) ->
 replace_args(Leaf, _CallArgs) ->
     Leaf.
 
-
+type_to_string(Type) ->
+	case Type of
+		spawn -> "";
+		spawn_link -> "link,";
+		spawn_monitor ->"monitor,"
+	end.
+	

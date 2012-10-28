@@ -2,6 +2,10 @@
 -export([start/0, start/1]).
 %%-on_load(start/0).
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 start() ->
 	start("concurix.config").
 start(Filename) ->
@@ -38,4 +42,25 @@ setup_config([Head | Tail]) ->
 	%% do something with head
 	io:format("unknown concurix configuration ~p ~n", [Head]),
 	setup_config(Tail).
+	
+%%
+%% TEST CODE here
+%%
+-ifdef(TEST).
+empty_test() ->
+	concurix_runtime:start("../test/empty.config"),
+	{ok, Mod} = compile:file("../test/mandelbrot.erl", [{parse_transform, concurix_transform}]),
+	Mod:main(100).
+	
+mandelbrot_test() ->
+	concurix_runtime:start("../test/mandel_test.config"),
+	{ok, Mod} = compile:file("../test/mandelbrot.erl", [{parse_transform, concurix_transform}]),
+	Mod:main(100).
+
+spawn_test() ->
+	concurix_runtime:start("../test/spawn_test.config"),
+	{ok, Mod} = compile:file("../test/spawn_test.erl", [{parse_transform, concurix_transform}]),
+	Mod:main(100).
+	
+-endif. %% endif TEST
 	
