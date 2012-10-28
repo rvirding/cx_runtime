@@ -9,7 +9,7 @@
 start() ->
 	start("concurix.config").
 start(Filename) ->
-	io:format("starting Concurix Runtime ~p ~n", [erlang:process_info(self())]),
+	io:format("starting Concurix Runtime~n"),
 	Dirs = code:get_path(),
 	{ok, Config, _File} = file:path_consult(Dirs, Filename),
 	setup_ets_tables(),
