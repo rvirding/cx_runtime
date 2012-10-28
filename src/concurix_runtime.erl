@@ -9,7 +9,9 @@
 start() ->
 	start("concurix.config").
 start(Filename) ->
-	{ok, Config} = file:consult(Filename),
+	io:format("starting Concurix Runtime ~p ~n", [erlang:process_info(self())]),
+	Dirs = code:get_path(),
+	{ok, Config, _File} = file:path_consult(Dirs, Filename),
 	setup_ets_tables(),
 	setup_config(Config).
 	
@@ -22,13 +24,13 @@ setup_ets_tables() ->
 		undefined -> ok;
 		_X -> ets:delete(concurix_config_spawn)
 	end,
-	ets:new(concurix_config_spawn, [named_table, {read_concurrency, true}]),
+	ets:new(concurix_config_spawn, [named_table, {read_concurrency, true}, {heir, whereis(init), concurix}]),
 		
 	case ets:info(concurix_config_memo) of
 		undefined -> ok;
 		_Y -> ets:delete(concurix_config_memo)
 	end,
-	ets:new(concurix_config_memo, [named_table, {read_concurrency, true}]).
+	ets:new(concurix_config_memo, [named_table, {read_concurrency, true}, {heir, whereis(init), concurix}]).
 	
 setup_config([]) ->
 	ok;
