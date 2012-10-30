@@ -58,15 +58,13 @@ setup_config([Head | Tail]) ->
 empty_test() ->
 	concurix_runtime:start("../test/empty.config"),
 	{ok, Mod} = compile:file("../test/mandelbrot.erl", [{parse_transform, concurix_transform}]),
-        %% Explicitly load the mandelbrot module to ensure we use the most recently compiled version
-        {module, Mod} = code:load_file(Mod),
 	Mod:main(100).
 	
 mandelbrot_test() ->
 	concurix_runtime:start("../test/mandel_test.config"),
+	%% Purge the module loaded by empty_test, so we'll load the one compiled below.
+	true = code:soft_purge(mandelbrot),
 	{ok, Mod} = compile:file("../test/mandelbrot.erl", [{parse_transform, concurix_transform}]),
-        %% Explicitly load the mandelbrot module to ensure we use the most recently compiled version
-        {module, Mod} = code:load_file(Mod),
 	Mod:main(100).
 
 spawn_test () ->
