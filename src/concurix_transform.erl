@@ -16,6 +16,21 @@ concurix_check_call(Line, {atom, Line2, spawn_link}, Args) ->
 concurix_check_call(Line, {atom, Line2, spawn_monitor}, Args) ->
 	{F1, Args2 } = concurix_compile:handle_spawn(Line2, Args, spawn_monitor),
     {call,Line,F1,Args2};
+concurix_check_call(Line, {atom, Line2, spawn_opt}, Args) ->
+	{F1, Args2 } = concurix_compile:handle_spawn(Line2, Args, spawn_opt),
+    {call,Line,F1,Args2};
+
+%% match the proc_lib spawn functions
+concurix_check_call(Line, {remote, Line2, PL = {atom, _Line3, proc_lib}, {atom, Line4, spawn}}, Args) ->
+	{F1, Args2 } = concurix_compile:handle_spawn(Line4, Args, spawn),
+    {call,Line,{remote, Line2, PL, F1}, Args2};
+concurix_check_call(Line, {remote, Line2, PL = {atom, _Line3, proc_lib}, {atom, Line4, spawn_link}}, Args) ->
+	{F1, Args2 } = concurix_compile:handle_spawn(Line4, Args, spawn_link),
+    {call,Line,{remote, Line2, PL, F1}, Args2};
+concurix_check_call(Line, {remote, Line2, PL = {atom, _Line3, proc_lib}, {atom, Line4, spawn_opt}}, Args) ->
+	{F1, Args2 } = concurix_compile:handle_spawn(Line4, Args, spawn_opt),
+    {call,Line,{remote, Line2, PL, F1}, Args2};
+
 concurix_check_call(Line, F = {atom, Line2, LocalFun}, Args) ->
 	Module = get(current_module),
 	{F1, Args2} = concurix_compile:handle_memo(Line2, {Module, LocalFun}, F, Args),
@@ -189,9 +204,9 @@ pattern_grp([]) ->
 
 bit_types([]) ->
     [];
-bit_types([Atom | Rest]) when atom(Atom) ->
+bit_types([Atom | Rest]) when is_atom(Atom) ->
     [Atom | bit_types(Rest)];
-bit_types([{Atom, Integer} | Rest]) when atom(Atom), integer(Integer) ->
+bit_types([{Atom, Integer} | Rest]) when is_atom(Atom), is_integer(Integer) ->
     [{Atom, Integer} | bit_types(Rest)].
 
 
@@ -219,7 +234,7 @@ pattern_fields([]) -> [].
 
 %% -type guard([GuardTest]) -> [GuardTest].
 
-guard([G0|Gs]) when list(G0) ->
+guard([G0|Gs]) when is_list(G0) ->
     [guard0(G0) | guard(Gs)];
 guard(L) ->
     guard0(L).

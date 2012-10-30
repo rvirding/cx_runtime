@@ -62,6 +62,8 @@ empty_test() ->
 	
 mandelbrot_test() ->
 	concurix_runtime:start("../test/mandel_test.config"),
+	%% Purge the module loaded by empty_test, so we'll load the one compiled below.
+	true = code:soft_purge(mandelbrot),
 	{ok, Mod} = compile:file("../test/mandelbrot.erl", [{parse_transform, concurix_transform}]),
 	Mod:main(100).
 
@@ -70,10 +72,10 @@ spawn_test () ->
 	{ok, Mod} = compile:file("../test/spawn_test.erl", [{parse_transform, concurix_transform}]),
 	Mod:main(100).
 	
-master_test()->
-	concurix_runtime:start("../test/master_test.config"),
-	[{concurix_server, "localhost:8001"}] = ets:lookup(concurix_config_master, concurix_server),
-	[{user, "alex@concurix.com"}] = ets:lookup(concurix_config_master, user).
+%% master_test()->
+%% 	concurix_runtime:start("../test/master_test.config"),
+%% 	[{concurix_server, "localhost:8001"}] = ets:lookup(concurix_config_master, concurix_server),
+%% 	[{user, "alex@concurix.com"}] = ets:lookup(concurix_config_master, user).
 	
 	
 -endif. %% endif TEST
