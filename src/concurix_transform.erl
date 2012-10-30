@@ -15,6 +15,21 @@ concurix_check_call(Line, {atom, Line2, spawn_link}, Args) ->
 concurix_check_call(Line, {atom, Line2, spawn_monitor}, Args) ->
 	{F1, Args2 } = concurix_compile:handle_spawn(Line2, Args, spawn_monitor),
     {call,Line,F1,Args2};
+concurix_check_call(Line, {atom, Line2, spawn_opt}, Args) ->
+	{F1, Args2 } = concurix_compile:handle_spawn(Line2, Args, spawn_opt),
+    {call,Line,F1,Args2};
+
+%% match the proc_lib spawn functions
+concurix_check_call(Line, {remote, Line2, PL = {atom, _Line3, proc_lib}, {atom, Line4, spawn}}, Args) ->
+	{F1, Args2 } = concurix_compile:handle_spawn(Line4, Args, spawn),
+    {call,Line,{remote, Line2, PL, F1}, Args2};
+concurix_check_call(Line, {remote, Line2, PL = {atom, _Line3, proc_lib}, {atom, Line4, spawn_link}}, Args) ->
+	{F1, Args2 } = concurix_compile:handle_spawn(Line4, Args, spawn_link),
+    {call,Line,{remote, Line2, PL, F1}, Args2};
+concurix_check_call(Line, {remote, Line2, PL = {atom, _Line3, proc_lib}, {atom, Line4, spawn_opt}}, Args) ->
+	{F1, Args2 } = concurix_compile:handle_spawn(Line4, Args, spawn_opt),
+    {call,Line,{remote, Line2, PL, F1}, Args2};
+
 concurix_check_call(Line, F = {atom, Line2, LocalFun}, Args) ->
 	Module = get(current_module),
 	{F1, Args2} = concurix_compile:handle_memo(Line2, {Module, LocalFun}, F, Args),
