@@ -2,6 +2,7 @@
 -export([parse_transform/2]).
 
 parse_transform(AST, _Options) ->
+	io:format("AST= ~p~n", [AST]),
 	forms(AST).
 
 
