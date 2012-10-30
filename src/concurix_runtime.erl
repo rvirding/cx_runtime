@@ -58,11 +58,15 @@ setup_config([Head | Tail]) ->
 empty_test() ->
 	concurix_runtime:start("../test/empty.config"),
 	{ok, Mod} = compile:file("../test/mandelbrot.erl", [{parse_transform, concurix_transform}]),
+        %% Explicitly load the mandelbrot module to ensure we use the most recently compiled version
+        {module, Mod} = code:load_file(Mod),
 	Mod:main(100).
 	
 mandelbrot_test() ->
 	concurix_runtime:start("../test/mandel_test.config"),
 	{ok, Mod} = compile:file("../test/mandelbrot.erl", [{parse_transform, concurix_transform}]),
+        %% Explicitly load the mandelbrot module to ensure we use the most recently compiled version
+        {module, Mod} = code:load_file(Mod),
 	Mod:main(100).
 
 spawn_test () ->
@@ -70,10 +74,10 @@ spawn_test () ->
 	{ok, Mod} = compile:file("../test/spawn_test.erl", [{parse_transform, concurix_transform}]),
 	Mod:main(100).
 	
-master_test()->
-	concurix_runtime:start("../test/master_test.config"),
-	[{concurix_server, "localhost:8001"}] = ets:lookup(concurix_config_master, concurix_server),
-	[{user, "alex@concurix.com"}] = ets:lookup(concurix_config_master, user).
+%% master_test()->
+%% 	concurix_runtime:start("../test/master_test.config"),
+%% 	[{concurix_server, "localhost:8001"}] = ets:lookup(concurix_config_master, concurix_server),
+%% 	[{user, "alex@concurix.com"}] = ets:lookup(concurix_config_master, user).
 	
 	
 -endif. %% endif TEST
