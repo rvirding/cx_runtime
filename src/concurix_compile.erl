@@ -50,14 +50,34 @@ handle_memo(Line, MFLookup, Fun, Args) ->
 		_X -> 
 			{Fun, Args}
 	end.
-	
+
+%% Generates a pair of abstract forms representing a call to concurix_memo:local_memoize
+%% and the argument to that call - a closure wrapping a call to Fun(Args).	
 generate_call_local_memo(Line, Fun, Args) ->
 	{{remote, Line, {atom, Line, concurix_memo}, {atom, Line, local_memoize}},
 		[{'fun', Line, {clauses, [{clause, Line, [], [], [{call, Line, Fun, Args}]}]}}]}.
-	
+
+%% Generate a memoized call that preserves any side effects of the Args expressions.
 generate_call_local_memo_with_effects(Line, Fun, Args) ->
-	{{remote, Line, {atom, Line, concurix_memo}, {atom, Line, local_memoize}},
-		[{'fun', Line, {clauses, [{clause, Line, [], [], [{call, Line, Fun, Args}]}]}}]}.
+        ArgList = generate_args(length(Args), Line),
+        {{'fun', Line, {clauses,
+                        [{clause, Line, ArgList, [],
+                          [{call, Line,
+                            {remote, Line, {atom, Line, concurix_memo}, {atom, Line, local_memoize}},
+                            [{'fun', Line, {clauses,
+                                            [{clause, Line, [], [],
+                                              [{call, Line, Fun, ArgList}]
+                                             }]
+                                           }}]
+                           }]
+                         }]
+                       }},
+         Args}.
+
+generate_args(NumArgs, Line) ->
+    lists:map(fun(I) ->
+                      {var, Line, list_to_atom("Arg" ++ integer_to_list(I))}
+              end, lists:seq(1, NumArgs)).
 	
 get_arg_n(CallArgs, 1) ->
 	{cons, _Line, Arg, _Remainder} = CallArgs,
@@ -95,7 +115,7 @@ type_to_string(Type) ->
 %% option and add a new one.
 store_min_heap_size({nil, Line}, MinHeapSize) ->
     {cons, Line, MinHeapSize, {nil, Line}};
-store_min_heap_size({cons, Line, {tuple, _Line2, [{atom, _Line3, min_heap_size}, _Size]}, Tail}, MinHeapSize) ->
+store_min_heap_size({cons, _Line, {tuple, _Line2, [{atom, _Line3, min_heap_size}, _Size]}, Tail}, MinHeapSize) ->
     store_min_heap_size(Tail, MinHeapSize);
 store_min_heap_size({cons, Line, Head, Tail}, MinHeapSize) ->
     {cons, Line, Head, store_min_heap_size(Tail, MinHeapSize)}.
