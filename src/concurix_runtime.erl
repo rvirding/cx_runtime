@@ -20,7 +20,10 @@ start(Filename) ->
 %% have any options
 
 setup_ets_tables([]) ->
-	ok;
+	case get(run_commands) of
+		undefined -> ok;
+		X -> concurix_run:process_runscript(X)
+	end;
 setup_ets_tables([H | T]) ->
 	case ets:info(H) of
 		undefined ->ok;
@@ -40,6 +43,9 @@ setup_config([{memoization, MemoConfig} | Tail]) ->
 setup_config([{master, MasterConfig} | Tail]) ->
 	lists:foreach(fun(X) -> {Key, Val} = X, ets:insert(concurix_config_master, {Key, Val}) end, MasterConfig),
 	setup_config(Tail);
+setup_config([{run, RunConfig} | Tail]) ->
+	put(run_commands, RunConfig), %%we'll run the instrumentation work *after* we've had a chance to finish initializing
+	setup_config(Tail);	
 setup_config([Head | Tail]) ->
 	%% do something with head
 	io:format("unknown concurix configuration ~p ~n", [Head]),
@@ -59,10 +65,16 @@ mandelbrot_test() ->
 	{ok, Mod} = compile:file("../test/mandelbrot.erl", [{parse_transform, concurix_transform}]),
 	Mod:main(100).
 
-spawn_test() ->
+spawn_test () ->
 	concurix_runtime:start("../test/spawn_test.config"),
 	{ok, Mod} = compile:file("../test/spawn_test.erl", [{parse_transform, concurix_transform}]),
 	Mod:main(100).
+	
+master_test()->
+	concurix_runtime:start("../test/master_test.config"),
+	[{concurix_server, "localhost:8001"}] = ets:lookup(concurix_config_master, concurix_server),
+	[{user, "alex@concurix.com"}] = ets:lookup(concurix_config_master, user).
+	
 	
 -endif. %% endif TEST
 	

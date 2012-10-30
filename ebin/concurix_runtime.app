@@ -5,5 +5,5 @@
               {registered,[]},
               {applications,[compiler,kernel,stdlib]},
               {env,[]},
-              {modules,[concurix_compile,concurix_memo,concurix_runtime,
-                        concurix_spawn,concurix_transform]}]}.
+              {modules,[concurix_compile,concurix_memo,concurix_run,
+                        concurix_runtime,concurix_spawn,concurix_transform]}]}.
