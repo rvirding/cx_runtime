@@ -2,10 +2,16 @@
 -export([start/0, start/1]).
 %%-on_load(start/0).
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 start() ->
 	start("concurix.config").
 start(Filename) ->
-	{ok, Config} = file:consult(Filename),
+	io:format("starting Concurix Runtime~n"),
+	Dirs = code:get_path(),
+	{ok, Config, _File} = file:path_consult(Dirs, Filename),
 	setup_ets_tables(),
 	setup_config(Config).
 	
@@ -18,13 +24,13 @@ setup_ets_tables() ->
 		undefined -> ok;
 		_X -> ets:delete(concurix_config_spawn)
 	end,
-	ets:new(concurix_config_spawn, [named_table, {read_concurrency, true}]),
+	ets:new(concurix_config_spawn, [named_table, {read_concurrency, true}, {heir, whereis(init), concurix}]),
 		
 	case ets:info(concurix_config_memo) of
 		undefined -> ok;
 		_Y -> ets:delete(concurix_config_memo)
 	end,
-	ets:new(concurix_config_memo, [named_table, {read_concurrency, true}]).
+	ets:new(concurix_config_memo, [named_table, {read_concurrency, true}, {heir, whereis(init), concurix}]).
 	
 setup_config([]) ->
 	ok;
@@ -38,4 +44,25 @@ setup_config([Head | Tail]) ->
 	%% do something with head
 	io:format("unknown concurix configuration ~p ~n", [Head]),
 	setup_config(Tail).
+	
+%%
+%% TEST CODE here
+%%
+-ifdef(TEST).
+empty_test() ->
+	concurix_runtime:start("../test/empty.config"),
+	{ok, Mod} = compile:file("../test/mandelbrot.erl", [{parse_transform, concurix_transform}]),
+	Mod:main(100).
+	
+mandelbrot_test() ->
+	concurix_runtime:start("../test/mandel_test.config"),
+	{ok, Mod} = compile:file("../test/mandelbrot.erl", [{parse_transform, concurix_transform}]),
+	Mod:main(100).
+
+spawn_test() ->
+	concurix_runtime:start("../test/spawn_test.config"),
+	{ok, Mod} = compile:file("../test/spawn_test.erl", [{parse_transform, concurix_transform}]),
+	Mod:main(100).
+	
+-endif. %% endif TEST
 	
