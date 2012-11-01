@@ -1,5 +1,5 @@
 -module(concurix_runtime).
--export([start/0, start/1]).
+-export([start/0, start/1, setup_ets_tables/1, setup_config/1]).
 %%-on_load(start/0).
 
 -ifdef(TEST).
@@ -13,6 +13,7 @@ start(Filename) ->
 	Dirs = code:get_path(),
 	{ok, Config, _File} = file:path_consult(Dirs, Filename),
 	setup_ets_tables([concurix_config_master, concurix_config_spawn, concurix_config_memo]),
+	erase(run_commands),
 	setup_config(Config).
 	
 %% we setup ets tables for configuration now to simplify the compile logic.  this
@@ -20,20 +21,19 @@ start(Filename) ->
 %% have any options
 
 setup_ets_tables([]) ->
+	ok;
+setup_ets_tables([H | T]) ->
+	case ets:info(H) of
+		undefined -> ets:new(H, [public, named_table, {read_concurrency, true}, {heir, whereis(init), concurix}]);
+		_X -> ets:delete_all_objects(H)
+	end,
+	setup_ets_tables(T).
+	
+setup_config([]) ->
 	case get(run_commands) of
 		undefined -> ok;
 		X -> concurix_run:process_runscript(X)
 	end;
-setup_ets_tables([H | T]) ->
-	case ets:info(H) of
-		undefined ->ok;
-		_X -> ets:delete(H)
-	end,
-	ets:new(H, [named_table, {read_concurrency, true}, {heir, whereis(init), concurix}]),
-	setup_ets_tables(T).
-	
-setup_config([]) ->
-	ok;
 setup_config([{spawn, SpawnConfig} | Tail]) ->
 	lists:foreach(fun(X) -> {{M, F}, Expr} = X, ets:insert(concurix_config_spawn, {{M, F}, Expr}) end, SpawnConfig),
 	setup_config(Tail);
@@ -41,6 +41,7 @@ setup_config([{memoization, MemoConfig} | Tail]) ->
 	lists:foreach(fun(X) -> {{M, F}, Expr} = X, ets:insert(concurix_config_memo, {{M, F}, Expr}) end, MemoConfig),
 	setup_config(Tail);
 setup_config([{master, MasterConfig} | Tail]) ->
+	io:format('got master config ~p ~n', [MasterConfig]),
 	lists:foreach(fun(X) -> {Key, Val} = X, ets:insert(concurix_config_master, {Key, Val}) end, MasterConfig),
 	setup_config(Tail);
 setup_config([{run, RunConfig} | Tail]) ->
@@ -72,11 +73,15 @@ spawn_test () ->
 	{ok, Mod} = compile:file("../test/spawn_test.erl", [{parse_transform, concurix_transform}]),
 	Mod:main(100).
 	
-%% master_test()->
-%% 	concurix_runtime:start("../test/master_test.config"),
-%% 	[{concurix_server, "localhost:8001"}] = ets:lookup(concurix_config_master, concurix_server),
-%% 	[{user, "alex@concurix.com"}] = ets:lookup(concurix_config_master, user).
-	
+master_test()->
+ 	concurix_runtime:start("../test/master_test.config"),
+ 	[{concurix_server, "localhost:8001"}] = ets:lookup(concurix_config_master, concurix_server),
+ 	[{user, "alex@concurix.com"}] = ets:lookup(concurix_config_master, user).
+
+run_test() ->
+	concurix_runtime:start("../test/run_test.config"),
+	%%wait five seconds.  the run commands should do there stuff in the meantime
+	timer:sleep(1000).	
 	
 -endif. %% endif TEST
 	

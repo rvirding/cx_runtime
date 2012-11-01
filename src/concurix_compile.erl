@@ -1,5 +1,5 @@
 -module(concurix_compile).
--export([string_to_form/1, string_to_form/2, handle_spawn/3, get_arg_n/2, handle_memo/4]).
+-export([string_to_form/1, string_to_form/2, handle_spawn/3, get_arg_n/2, handle_memo/4, eval_string/1]).
 
 string_to_form(String) ->
 	{ok, Tokens, _} = erl_scan:string(String),
@@ -119,4 +119,11 @@ store_min_heap_size({cons, _Line, {tuple, _Line2, [{atom, _Line3, min_heap_size}
     store_min_heap_size(Tail, MinHeapSize);
 store_min_heap_size({cons, Line, Head, Tail}, MinHeapSize) ->
     {cons, Line, Head, store_min_heap_size(Tail, MinHeapSize)}.
+
+%%
+%% some helper functions
+eval_string(String) ->
+    {ok, Tokens, _} = erl_scan:string(lists:concat([String, "."])),
+    {_Status, Term} = erl_parse:parse_term(Tokens),
+	Term.
 
