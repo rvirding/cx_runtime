@@ -4,19 +4,15 @@
 do_runscript([], _RunId) ->
 	ok;
 do_runscript([{sleep, Time} | T], RunId) ->
-	io:format("doing sleep~n"),
 	timer:apply_after(Time, concurix_run, do_runscript, [T, RunId]);
 do_runscript([{trace_on, Args} | T], RunId) ->
-	io:format("trace on ~n"),
 	concurix:vm_trace(true, Args, RunId),
 	do_runscript(T, RunId);
 do_runscript([{trace_off, Args} | T], RunId) ->
-	io:format("trace off ~n"),
 	concurix:vm_trace(false, Args),
 	do_runscript(T, RunId).
 
 process_runscript(Script) ->
-	io:format("processing run script~n"),
 	RunId = get_runId(),
 	do_runscript(Script, RunId).
 	
