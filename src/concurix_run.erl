@@ -21,11 +21,9 @@ process_runscript(Script) ->
 %%though we know it has some intermittent problems under chicago boss.
 get_runId() ->
 	[{concurix_server, Server}] = 	ets:lookup(concurix_config_master, concurix_server),
-	[{user, User}] = 				ets:lookup(concurix_config_master, user),
 	[{api_key, APIkey}] = 			ets:lookup(concurix_config_master, api_key),
-	[{project, Project}] = 			ets:lookup(concurix_config_master, project),
 	inets:start(),
-	Url = "http://" ++ Server ++ "/bench/new_run/" ++ http_uri:encode(User) ++ "/" ++ Project ++ "/" ++ APIkey,
+	Url = "http://" ++ Server ++ "/bench/new_run/" ++ APIkey,
 	Reply = httpc:request(Url),
 	io:format("url: ~p reply: ~p ~n", [Url, Reply]),
 	case Reply of

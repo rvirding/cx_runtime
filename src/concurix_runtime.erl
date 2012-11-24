@@ -1,5 +1,5 @@
 -module(concurix_runtime).
--export([start/0, start/1, setup_ets_tables/1, setup_config/1]).
+-export([start/0, start/1, start_config/1, setup_ets_tables/1, setup_config/1]).
 %%-on_load(start/0).
 
 -ifdef(TEST).
@@ -12,6 +12,9 @@ start(Filename) ->
 	io:format("starting Concurix Runtime~n"),
 	Dirs = code:get_path(),
 	{ok, Config, _File} = file:path_consult(Dirs, Filename),
+	start_config(Config).
+	
+start_config(Config) ->
 	setup_ets_tables([concurix_config_master, concurix_config_spawn, concurix_config_memo]),
 	erase(run_commands),
 	setup_config(Config).
@@ -80,8 +83,16 @@ master_test()->
 
 run_test() ->
 	concurix_runtime:start("../test/run_test.config"),
-	%%wait five seconds.  the run commands should do there stuff in the meantime
-	timer:sleep(1000).	
+	%%wait five seconds.  the run commands should do their stuff in the meantime
+	timer:sleep(1000).
+	
+start_config_test() ->
+	{ok, Config} = file:consult("../test/start_config_test.config"),
+	concurix_runtime:start_config(Config),
+ 	[{concurix_server, "localhost:8001"}] = ets:lookup(concurix_config_master, concurix_server),
+ 	[{user, "alex@concurix.com"}] = ets:lookup(concurix_config_master, user),
+	{ok, _Mod} = compile:file("../test/spawn_test.erl", [{parse_transform, concurix_transform}]).
+
 	
 -endif. %% endif TEST
 	
