@@ -1,5 +1,5 @@
 -module(concurix_runtime).
--export([start/0, start/1, start_config/1, setup_ets_tables/1, setup_config/1]).
+-export([start/0, start/1, start_config/1, start_text/1, setup_ets_tables/1, setup_config/1]).
 %%-on_load(start/0).
 
 -ifdef(TEST).
@@ -13,7 +13,11 @@ start(Filename) ->
 	Dirs = code:get_path(),
 	{ok, Config, _File} = file:path_consult(Dirs, Filename),
 	start_config(Config).
-	
+
+start_text(Text) ->
+	Config = concurix_compile:eval_string(Text),
+	start_config(Config).
+		
 start_config(Config) ->
 	setup_ets_tables([concurix_config_master, concurix_config_spawn, concurix_config_memo]),
 	erase(run_commands),
@@ -93,6 +97,13 @@ start_config_test() ->
  	[{user, "alex@concurix.com"}] = ets:lookup(concurix_config_master, user),
 	{ok, _Mod} = compile:file("../test/spawn_test.erl", [{parse_transform, concurix_transform}]).
 
-	
+start_text_test() ->
+	{ok, Bin } = file:read_file("../test/start_text_test.config"),
+	Text = binary_to_list(Bin),
+	concurix_runtime:start_text(Text),
+ 	[{concurix_server, "localhost:8001"}] = ets:lookup(concurix_config_master, concurix_server),
+ 	[{user, "alex@concurix.com"}] = ets:lookup(concurix_config_master, user),
+	{ok, _Mod} = compile:file("../test/spawn_test.erl", [{parse_transform, concurix_transform}]).
+		
 -endif. %% endif TEST
 	
