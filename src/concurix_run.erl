@@ -1,5 +1,5 @@
 -module(concurix_run).
--export([process_runscript/1, do_runscript/2, get_run_info/0]).
+-export([process_runscript/1, do_runscript/2, get_run_info/0, start_trace/2, start_trace/1, start_trace/0, finish_trace/2]).
 
 do_runscript([], RunInfo) ->
 	handle_run_end(RunInfo),
@@ -43,5 +43,17 @@ handle_run_end(RunInfo) ->
 	Run_id = proplists:get_value(run_id, RunInfo),
 	
 	concurix_file:transmit_to_s3(Run_id, Url, Fields).
-		
+	
+start_trace() ->
+	start_trace(6000, [garbage_collection, call]).
+start_trace(Duration) ->
+	start_trace(Duration, [garbagge_collection, call]).
+start_trace(Duration, Args) ->
+	RunInfo = get_run_info(),
+	concurix:vm_trace(true, Args, proplists:get_value(run_id, RunInfo)),
+	timer:apply_after(Duration, concurix_run, finish_trace, [RunInfo, Args]).
+	
+finish_trace(RunInfo, Args) ->
+	concurix:vm_trace(false, Args),
+	handle_run_end(RunInfo).
 	
