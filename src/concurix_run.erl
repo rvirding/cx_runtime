@@ -45,7 +45,7 @@ handle_run_end(RunInfo) ->
 	concurix_file:transmit_to_s3(Run_id, Url, Fields).
 	
 start_trace() ->
-	start_trace(6000, [garbage_collection, call]).
+	start_trace(10000, [garbage_collection, call]).
 start_trace(Duration) ->
 	start_trace(Duration, [garbage_collection, call]).
 start_trace(Duration, Args) ->

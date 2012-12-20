@@ -23,15 +23,14 @@ send_file(File, Run_id, Url, Fields) ->
 	SendFields = update_fields(Run_id, Fields, File),
 	{ok, Data} = file:read_file("/tmp/cx_data/" ++ Run_id ++ "/" ++ File),
 	
-	io:format("url, fields: ~p ~p ~n", [Url, Fields]),
-	io:format("data: ~p ~n", [Data]),
+	io:format("sending data for file ~p ", [File]),
 	Request = erlcloud_s3:make_post_http_request(Url, SendFields, Data),
 	io:format("request: ~p ~n", [Request]),
 	
 	Res = httpc:request(
 		post,
 		Request,
-		[{timeout, 60000}],
+		[{timeout, 6000000}],
 		[{sync, true}]			
 	),
 	io:format("post results ~p ~n", [Res]),
