@@ -47,7 +47,7 @@ handle_run_end(RunInfo) ->
 start_trace() ->
 	start_trace(6000, [garbage_collection, call]).
 start_trace(Duration) ->
-	start_trace(Duration, [garbagge_collection, call]).
+	start_trace(Duration, [garbage_collection, call]).
 start_trace(Duration, Args) ->
 	RunInfo = get_run_info(),
 	concurix:vm_trace(true, Args, proplists:get_value(run_id, RunInfo)),
