@@ -38,11 +38,12 @@ get_run_info() ->
 handle_run_end(RunInfo) ->
 	io:format("RunInfo = ~p ~n", [RunInfo]),
 	
-	Url = proplists:get_value(trace_url, RunInfo),
-	Fields = proplists:get_value(fields, RunInfo),
+	%%Url = proplists:get_value(trace_url, RunInfo),
+	%%Fields = proplists:get_value(fields, RunInfo),
 	Run_id = proplists:get_value(run_id, RunInfo),
 	
-	concurix_file:transmit_to_s3(Run_id, Url, Fields).
+	%%concurix_file:transmit_to_s3(Run_id, Url, Fields).
+	concurix_bench:invoke_bench_analysis(Run_id).
 	
 start_trace() ->
 	start_trace(10000, [garbage_collection, call]).
