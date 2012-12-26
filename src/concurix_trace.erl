@@ -11,10 +11,7 @@ top_pure_funs() ->
     %% Can we avoid analyzing all loaded modules each time this
     %% function is called?
     %% Skip preloaded and cover_compiled modules.
-    Modules = lists:filter(fun({_, Loaded}) ->
-                                   is_list(Loaded)
-                           end,
-                           code:all_loaded()),
+	Modules = [ Loaded || {_, Loaded} <- code:all_loaded(), is_list(Loaded)],
     PurityLookupTable = lookup_table(),
     purity:top_funs_from_modules(Modules, [{purelevel, 2}, {plt, PurityLookupTable}]).
 
@@ -26,7 +23,7 @@ top_pure_funs(ModuleList) ->
     Modules = lists:foldl(fun(ModuleName, Acc) ->
                                   case ensure_loaded(ModuleName) of
                                       {file, Filename} ->
-                                          [{ModuleName, Filename}|Acc];
+                                          [Filename | Acc];
                                       false ->
                                           Acc
                                   end
@@ -43,10 +40,7 @@ pure_funs() ->
     %% Can we avoid analyzing all loaded modules each time this
     %% function is called?
     %% Skip preloaded and cover_compiled modules.
-    Modules = lists:filter(fun({_, Loaded}) ->
-                                   is_list(Loaded)
-                           end,
-                           code:all_loaded()),
+	Modules = [ Loaded || {_, Loaded} <- code:all_loaded(), is_list(Loaded)],
     PurityLookupTable = lookup_table(),
     purity:pure_funs_from_modules(Modules, [{purelevel, 2}, {plt, PurityLookupTable}]).
 
@@ -58,7 +52,7 @@ pure_funs(ModuleList) ->
     Modules = lists:foldl(fun(ModuleName, Acc) ->
                                   case ensure_loaded(ModuleName) of
                                       {file, Filename} ->
-                                          [{ModuleName, Filename}|Acc];
+                                          [Filename | Acc];
                                       false ->
                                           Acc
                                   end
