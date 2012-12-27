@@ -23,7 +23,7 @@ top_pure_funs(ModuleList) ->
     Modules = lists:foldl(fun(ModuleName, Acc) ->
                                   case ensure_loaded(ModuleName) of
                                       {file, Filename} ->
-                                          [Filename | Acc];
+                                          [{ModuleName, Filename} | Acc];
                                       false ->
                                           Acc
                                   end
@@ -52,7 +52,7 @@ pure_funs(ModuleList) ->
     Modules = lists:foldl(fun(ModuleName, Acc) ->
                                   case ensure_loaded(ModuleName) of
                                       {file, Filename} ->
-                                          [Filename | Acc];
+                                          [{ModuleName, Filename} | Acc];
                                       false ->
                                           Acc
                                   end
