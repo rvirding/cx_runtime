@@ -1,17 +1,26 @@
 -module(concurix_file).
 
--export([transmit_to_s3/3]).
+-export([transmit_to_s3/5, transmit_dir_to_s3/4]).
+-export([recursively_list_dir/1,
+         recursively_list_dir/2]).
 
-transmit_to_s3(Run_id, Url, Fields) ->
+% @type name() = string() | atom() | binary().
+-type name() :: string() | atom() | binary().
+
+transmit_dir_to_s3(Run_id, Dir, Url, Fields) ->
+	transmit_to_s3(Run_id, Dir, true, Url, Fields).
+
+transmit_to_s3(Run_id, SubDir, Recurse, Url, Fields) ->
 	inets:start(),
 	ssl:start(),
 	
-	case file:list_dir("/tmp/cx_data/" ++ Run_id) of
-		{ok, Files} ->
-			send_files(Files, Run_id, Url, Fields);
-		_X ->
-			io:format("error--no run directory found")
-	end.
+	Dir = "/tmp/cx_data/" ++ Run_id ++ "/"++ SubDir,	
+	Files = cx_list_dir(Dir, Recurse),
+	
+	Len = string:len(Dir) + 1,
+	Subfiles = [ string:substr(X, Len) || X <- Files, string:len(X) > Len ],
+	
+	send_files(Subfiles, Run_id, Url, Fields).
 	
 send_files([], _Run_id, _Url, _Fields) ->
 	ok;
@@ -39,3 +48,128 @@ send_file(File, Run_id, Url, Fields) ->
 update_fields(Run_id, Fields, File) ->
 	Temp = proplists:delete(key, Fields),
 	Temp ++ [{key, Run_id ++ "/" ++ File}].
+
+
+cx_list_dir(Dir, true) ->
+	{ok, Files} = recursively_list_dir(Dir, true),
+	Files;
+cx_list_dir(Dir, false) ->
+	{ok, All } = file:list_dir(Dir),
+	[ X || X <- All, filelib:is_regular(X)].
+
+%%
+%% Recursive file list from https://gist.github.com/1059710
+%% Mrinal Wadhwa
+%%
+	
+% @spec (Dir::name()) -> {ok, [string()]} | {error, atom()}
+% @equiv recursively_list_dir(Dir, false)
+% 
+% @doc Lists all the files in a directory and recursively in all its
+% sub directories. Returns {ok, Paths} if successful. Otherwise,
+% it returns {error, Reason}. Paths is a list of Paths of all the
+% files and directories in the input directory's subtree. The paths are not
+% sorted in any order.
+
+-spec recursively_list_dir(Dir::name()) ->
+        {ok, [string()]} | {error, atom()}.
+
+recursively_list_dir(Dir) ->
+    recursively_list_dir(Dir, false). % default value of FilesOnly is false
+
+
+
+
+% @spec (Dir::name(), FilesOnly::boolean()) -> {ok, [string()]} |
+%                                                   {error, atom()}
+% 
+% @doc Lists all the files in a directory and recursively in all its
+% sub directories. Returns {ok, Paths} if successful. Otherwise,
+% it returns {error, Reason}. If FilesOnly is false, Paths is a list of paths
+% of all the files <b>and directories</b> in the input directory's subtree.
+% If FilesOnly is true, Paths is a list of paths of only the files in the
+% input directory's subtree. The paths are not sorted in any order.
+
+-spec recursively_list_dir(Dir::name(), FilesOnly::boolean()) ->
+        {ok, [string()]} | {error, atom()}.
+
+recursively_list_dir(Dir, FilesOnly) ->
+    case filelib:is_file(Dir) of
+        true ->
+            case filelib:is_dir(Dir) of
+                true -> {ok, recursively_list_dir([Dir], FilesOnly, [])};
+                false -> {error, enotdir}
+            end;
+        false -> {error, enoent}
+    end.
+
+
+
+
+%% Internal
+
+recursively_list_dir([], _FilesOnly, Acc) -> Acc;
+recursively_list_dir([Path|Paths], FilesOnly, Acc) ->
+    recursively_list_dir(Paths, FilesOnly,
+        case filelib:is_dir(Path) of
+            false -> [Path | Acc];
+            true ->
+                {ok, Listing} = file:list_dir(Path),
+                SubPaths = [filename:join(Path, Name) || Name <- Listing],
+                recursively_list_dir(SubPaths, FilesOnly,
+                    case FilesOnly of
+                        true -> Acc;
+                        false -> [Path | Acc]
+                    end)
+        end).
+
+
+
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+non_existing_file_returns_error_test() ->
+    ?assertEqual({error, enoent},
+                 recursively_list_dir("UnUSuAalfIlEnaMe")),
+    ok.
+
+non_directory_input_returns_error_test() ->
+    cleanup(),
+    file:write_file("f1.test", <<"temp test file">>),
+    ?assertEqual({error, enotdir}, 
+                 recursively_list_dir("f1.test")),
+    cleanup(),
+    ok.
+
+simple_test() ->
+    cleanup(),
+    filelib:ensure_dir("a/b/c/"),
+    ?assertEqual({ok, ["a/b/c", "a/b", "a"]}, 
+                 recursively_list_dir("a")),
+    file:write_file("a/b/f.test", <<"temp test file">>),
+    ?assertEqual({ok, ["a/b/c","a/b/f.test","a/b","a"]}, 
+                 recursively_list_dir("a")),
+    cleanup(),
+    ok.
+
+filesonly_test() ->
+    cleanup(),
+    filelib:ensure_dir("a/b/f.test"),
+    file:write_file("a/b/f.test", <<"hello">>),
+    ?assertEqual({ok, ["a/b/f.test"]}, 
+                 recursively_list_dir("a", true)),
+    cleanup(),
+    ok.
+
+cleanup() ->
+    file:delete("f1.test"),
+    file:delete("a/b/f.test"),
+    file:del_dir("a/b/c"),
+    file:del_dir("a/b"),
+    file:del_dir("a"),
+    ok.
+
+-endif.	
