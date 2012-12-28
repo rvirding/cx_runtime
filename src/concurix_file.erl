@@ -1,11 +1,18 @@
 -module(concurix_file).
 
--export([transmit_to_s3/5, transmit_dir_to_s3/4]).
+-export([transmit_to_s3/5, transmit_dir_to_s3/4, permissioned_transmit_dir_to_s3/3]).
 -export([recursively_list_dir/1,
          recursively_list_dir/2]).
 
 % @type name() = string() | atom() | binary().
 -type name() :: string() | atom() | binary().
+
+%%
+%% transmit directory to s3 **assuming** that erlcloud_s3:configure has been called with 
+%% appropriate permissions by the calling process
+permissioned_transmit_dir_to_s3(Bucket, Run_id, Dir) ->
+	Files = cx_list_dir(Dir, true),
+	permissioned_send_files(Files, Bucket, Run_id, Dir).
 
 transmit_dir_to_s3(Run_id, Dir, Url, Fields) ->
 	transmit_to_s3(Run_id, Dir, true, Url, Fields).
@@ -21,6 +28,17 @@ transmit_to_s3(Run_id, SubDir, Recurse, Url, Fields) ->
 	Subfiles = [ string:substr(X, Len) || X <- Files, string:len(X) > Len ],
 	
 	send_files(Subfiles, Run_id, Url, Fields).
+
+permissioned_send_files([], _Bucket, _Run_id, _RootDir) ->
+	ok;
+permissioned_send_files([File | Tail], Bucket, Run_id, RootDir) ->
+	permissioned_send_file(File, Bucket, Run_id, RootDir),
+	permissioned_send_files(Tail, Bucket, Run_id, RootDir).
+	
+permissioned_send_file(File, Bucket, Run_id, RootDir) ->
+	{ok, Data} = file:read_file(File),
+	Key = Run_id ++ (File -- RootDir),
+	erlcloud_s3:put_object(Bucket, Key, Data).
 	
 send_files([], _Run_id, _Url, _Fields) ->
 	ok;
@@ -49,7 +67,8 @@ update_fields(Run_id, Fields, File) ->
 	Temp = proplists:delete(key, Fields),
 	Temp ++ [{key, Run_id ++ "/" ++ File}].
 
-
+%%
+%% list the directory.  the second argument is fRecurse (to recurse or not)
 cx_list_dir(Dir, true) ->
 	{ok, Files} = recursively_list_dir(Dir, true),
 	Files;
