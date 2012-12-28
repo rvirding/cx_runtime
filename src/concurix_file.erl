@@ -38,7 +38,8 @@ permissioned_send_files([File | Tail], Bucket, Run_id, RootDir) ->
 permissioned_send_file(File, Bucket, Run_id, RootDir) ->
 	{ok, Data} = file:read_file(File),
 	Key = Run_id ++ (File -- RootDir),
-	erlcloud_s3:put_object(Bucket, Key, Data).
+	Type = data_type(File),
+	erlcloud_s3:put_object(Bucket, Key, Data, [{"content-type", Type}]).
 	
 send_files([], _Run_id, _Url, _Fields) ->
 	ok;
@@ -192,3 +193,37 @@ cleanup() ->
     ok.
 
 -endif.	
+
+data_type(File) ->
+	case filename:extension(File) of
+		".html" ->
+			"text/html";
+		".jpg" ->
+			"image/jpeg";
+		".jpeg" ->
+			"image/jpeg";
+		".png" ->
+			"image/png";
+		".log" ->
+			"text/plain";
+		".txt" ->
+			"text/plain";
+		".xml" ->
+			"text/xml";
+		".bin" ->
+			"application/octet_stream";
+		".zip" ->
+			"application/zip";
+		".css" ->
+			"text/css";
+		".json" ->
+			"application/json";
+		".javascript" ->
+			"application/javascript";
+		".pdf" ->
+			"application/pdf";
+		".erl" ->
+			"text/plain";
+		".gplit" ->
+			"text/plain"
+	end.			
