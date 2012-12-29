@@ -39,7 +39,7 @@ permissioned_send_file(File, Bucket, Run_id, RootDir) ->
 	{ok, Data} = file:read_file(File),
 	Key = Run_id ++ (File -- RootDir),
 	Type = data_type(File),
-	erlcloud_s3:put_object(Bucket, Key, Data, [{"content-type", Type}]).
+	erlcloud_s3:put_object(Bucket, Key, Data, [], [{"content-type", Type}]).
 	
 send_files([], _Run_id, _Url, _Fields) ->
 	ok;
