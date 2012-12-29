@@ -224,6 +224,9 @@ data_type(File) ->
 			"application/pdf";
 		".erl" ->
 			"text/plain";
-		".gplit" ->
+		".gplot" ->
+			"text/plain";
+		_X ->
+			%% if we don't know, call it text
 			"text/plain"
 	end.			
