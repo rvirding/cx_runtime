@@ -32,7 +32,9 @@ install: release
 	install concurix.config $(INSTALL_DIR)
 	install -d $(INSTALL_DIR)/src
 	install	src/*.erl $(INSTALL_DIR)/src
+	install -d $(INSTALL_DIR)/ebin
 	install ebin/*.beam ebin/concurix_runtime.app $(INSTALL_DIR)/ebin
+	install -d $(INSTALL_DIR)/test
 	install test/* $(INSTALL_DIR)/test
 	install scripts/concurix_runtime.boot $(ROOT)/bin
 	install scripts/concurix_runtime.boot $(ROOT)/releases/R15B02
