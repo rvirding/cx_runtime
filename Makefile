@@ -28,12 +28,13 @@ release:
 install: release
 	cd deps/erlcloud && make install
 	cd deps/purity && make install
-	mkdir -p $(INSTALL_DIR)
-	cp concurix.config $(INSTALL_DIR)/concurix.config
-	cp -r src $(INSTALL_DIR)/src
-	cp -r ebin $(INSTALL_DIR)/ebin
-	cp -r test $(INSTALL_DIR)/test
-	cp scripts/concurix_runtime.boot $(ROOT)/bin/concurix_runtime.boot
-	cp scripts/concurix_runtime.boot $(ROOT)/releases/R15B02/concurix_runtime.boot
-	cp scripts/concurix_runtime.script $(ROOT)/releases/R15B02/concurix_runtime.script
+	install -d $(INSTALL_DIR)
+	install concurix.config $(INSTALL_DIR)
+	install -d $(INSTALL_DIR)/src
+	install	src/*.erl $(INSTALL_DIR)/src
+	install ebin/*.beam ebin/concurix_runtime.app $(INSTALL_DIR)/ebin
+	install test/* $(INSTALL_DIR)/test
+	install scripts/concurix_runtime.boot $(ROOT)/bin
+	install scripts/concurix_runtime.boot $(ROOT)/releases/R15B02
+	install scripts/concurix_runtime.script $(ROOT)/releases/R15B02
 
