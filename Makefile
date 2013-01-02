@@ -25,7 +25,7 @@ doc:
 release:
 	scripts/release
 
-install: release
+install:
 	cd deps/erlcloud && make install
 	cd deps/purity && make install
 	install -d $(INSTALL_DIR)
