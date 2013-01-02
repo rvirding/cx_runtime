@@ -1,0 +1,21 @@
+%%
+%% Copyright 2013 Concurix Inc.
+%%
+%% A Concurix Erlang release consists of the Erlang kernel and standard library
+%% plus the Concurix runtime library and its dependencies.
+%%
+{release, {"Concurix Erlang", "0.1"}, {erts, "5.9.2"},
+ [{kernel, "2.15.2"},
+  {stdlib, "1.18.2"},
+  {concurix_runtime, "0.1"},
+  {compiler, "4.8.2"},
+  {crypto, "2.2"},
+  {erlcloud, "0.4.1"},
+  {inets, "5.9.1"},
+  {public_key, "0.16"},
+  {purity, "0.2"},
+  {sasl, "2.2.1"},
+  {ssl, "5.1"},
+  {xmerl, "1.3.2"}]}.
+
+

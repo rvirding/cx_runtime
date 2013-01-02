@@ -3,9 +3,22 @@
   {description, "Concurix VM Runtime enhancements"},
   {vsn, "0.1"},
   {src_dirs, ["./"]},
+  {modules, [concurix_bench,
+             concurix_compile,
+             concurix_file,
+             concurix_memo,
+             concurix_run,
+             concurix_runtime,
+             concurix_trace,
+             concurix_transform
+             ]},
   {registered, []},
+  {included_applications, [
+                           erlcloud,
+                           purity
+                           ]},
   {applications, [
-				  compiler,
+                  compiler,
                   kernel,
                   stdlib
                  ]},

@@ -1,0 +1,19 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -sname release -pa deps/erlcloud/ebin deps/purity/ebin ebin
+
+%% Construct the boot script files for a concurix_runtime release.
+%% To be run from the concurix_runtime top-level directory after
+%% building the .app files.
+
+main([]) ->
+    case systools:make_script("scripts/concurix_runtime") of
+        ok -> ok;
+        error -> usage()
+    end;
+main(_) ->
+    usage().
+
+usage() ->
+    io:format("usage: release\n"),
+    halt(1).
