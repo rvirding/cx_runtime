@@ -67,8 +67,6 @@ send_summary(State)->
 	Send = [{nodes, TempProcs}, {links, TempLinks}],
 
 	Data = lists:flatten(io_lib:format("~p", [Send])),
-	
-	io:format("data to send pre encoded = ~p ~n", [Data]),
 
 	Encoded = "data=" ++ http_uri:encode(Data),
 	RunId   = proplists:get_value(run_id, State#tcstate.runinfo),
@@ -76,7 +74,6 @@ send_summary(State)->
 	
 	Url = "http://localhost:8001/bench/process_graph_data/" ++ RunId ++ "/" ++ APIkey,
 	Reply = httpc:request(post, {Url, [], "application/x-www-form-urlencoded", Encoded}, [], []),
-	io:format("url: ~p reply: ~p ~n", [Url, Reply]),
 	case Reply of
 		{_, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} -> 
 			ok = concurix_compile:eval_string(Body);
