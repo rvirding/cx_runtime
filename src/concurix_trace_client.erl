@@ -61,7 +61,7 @@ send_summary(State)->
 	Procs  = ets:tab2list(State#tcstate.proctable),
 	Links = ets:tab2list(State#tcstate.linktable),
 	
-	TempProcs = [ [{name, pid_to_s(Pid)}, {module, M}, {function, F}, {arity, A}, local_process_info(Pid, reductions)] || {Pid, {M, F, A}} <- Procs ],
+	TempProcs = [ [{name, pid_to_s(Pid)}, {module, term_to_s(M)}, {function, term_to_s(F)}, {arity, A}, local_process_info(Pid, reductions)] || {Pid, {M, F, A}} <- Procs ],
 	TempLinks = [ [{source, pid_to_s(A)}, {target, pid_to_s(B)}, {value, C}] || {{A, B}, C} <- Links],
 	
 	Send = [{nodes, TempProcs}, {links, TempLinks}],
@@ -84,8 +84,9 @@ send_summary(State)->
 	
 pid_to_s(Pid) ->
 	lists:flatten(io_lib:format("~p", [Pid])).
-	
-	
+
+term_to_s(Term) ->
+	lists:flatten(io_lib:format("~p", [Term])).	
 %
 %
 update_proc_table([], State) ->
@@ -93,18 +94,10 @@ update_proc_table([], State) ->
 update_proc_table([Pid | Tail], State) ->
 	case ets:lookup(State#tcstate.proctable, Pid) of
 		[] ->
-			case Pid of 
-				Pid when is_pid(Pid) ->
-					{initial_call, {Mod, Fun, Arity}} = process_info(Pid, initial_call);
-				Pid when is_port(Pid) ->
-					Info = erlang:port_info(Pid),
-					Mod = port,
-					Fun = proplists:get_value(name, Info),
-					Arity = 0;
-				Pid when is_atom(Pid) ->
-					P = whereis(Pid),
-					{initial_call, {Mod, Fun, Arity}} = process_info(P, initial_call);
-				Pid ->
+			case local_process_info(Pid, initial_call) of
+				{initial_call, {Mod, Fun, Arity}} ->
+					ok;
+				_X ->
 					Mod = unknown,
 					Fun = Pid,
 					Arity = 0
@@ -115,9 +108,12 @@ update_proc_table([Pid | Tail], State) ->
 	end,
 	update_proc_table(Tail, State).
 	
-local_process_info(Pid, reductions) when is_pid(Pid) ->
-	process_info(Pid, reductions);
-local_process_info(Pid, reductions) when is_atom(Pid) ->
-	process_info(whereis(Pid), reductions);
-local_process_info(Pid, reductions) ->
-	{reductions, 1}.
+local_process_info(Pid, Key) when is_pid(Pid) ->
+	process_info(Pid, Key);
+local_process_info(Pid, Key) when is_atom(Pid) ->
+	process_info(whereis(Pid), Key);
+local_process_info(Pid, reductions) when is_port(Pid) ->
+	{reductions, 1};
+local_process_info(Pid, initial_call) when is_port(Pid) ->
+	Info = erlang:port_info(Pid),
+	{initial_call, {port, proplists:get_value(name, Info), 0}}.
