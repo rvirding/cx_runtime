@@ -1,5 +1,5 @@
 -module(concurix_runtime).
--export([start/0, start/1, start_config/1, start_text/1, setup_ets_tables/1, setup_config/1]).
+-export([start/0, start/1, start/2, start_config/1, start_text/1, setup_ets_tables/1, setup_config/1]).
 %%-on_load(start/0).
 
 -ifdef(TEST).
@@ -14,6 +14,15 @@ start(Filename) ->
 	{ok, Config, _File} = file:path_consult(Dirs, Filename),
 	start_config(Config).
 
+start(Filename, Options) ->
+	start(Filename),
+	case lists:member(msg_trace, Options) of
+		true ->
+			concurix_trace_client:start_trace_client();
+		false ->
+			ok
+	end.
+	
 start_text(Text) ->
 	Config = concurix_compile:eval_string(Text),
 	start_config(Config).
