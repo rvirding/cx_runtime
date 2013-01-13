@@ -131,7 +131,7 @@ decode_anon_fun(Fun) ->
 	Str = lists:flatten(io_lib:format("~p", [Fun])),
 	case string:tokens(Str, "<") of
 		["#Fun", Name] ->
-			[Mod, _] = string:tokens(Name, ".");
+			[Mod | _] = string:tokens(Name, ".");
 		_X ->
 			Mod = "anon_function"
 	end,
