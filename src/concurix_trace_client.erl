@@ -39,8 +39,8 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 		{proc_lib, init_p, _ProcInfo} ->
 			{Mod, Fun, Arity} = proc_lib:translate_initial_call(Pid),
 			ok;
-		{erlang, apply, [Fun, Args]} ->
-			{Mod, Fun, Arity} = decode_anon_fun(Fun);
+		{erlang, apply, [TempFun, Args]} ->
+			{Mod, Fun, Arity} = decode_anon_fun(TempFun);
 		{Mod, Fun, Args} ->
 			Arity = length(Args),
 			ok;
