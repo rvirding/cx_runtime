@@ -135,5 +135,5 @@ decode_anon_fun(Fun) ->
 		_X ->
 			Mod = "anon_function"
 	end,
-	{Mod, Fun, 0}.
+	{Mod, Str, 0}.
 	
