@@ -36,22 +36,25 @@ handle_trace_message({trace, Pid, exit, Reason}, State) ->
 	State;
 handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 	case Data of 
-		{proc_lib, init_p, [_App, _Caller, Mod, Fun, Args]} ->
+		{proc_lib, init_p, _ProcInfo} ->
+			{Mod, Fun, Arity} = proc_lib:translate_initial_call(Pid),
 			ok;
 		{erlang, apply, [Fun, Args]} ->
+			Arity = length(Args),
 			Mod = erlang;
 		{Mod, Fun, Args} ->
+			Arity = length(Args),
 			ok;
 		X ->
 			io:format("got unknown spawn of ~p ~n", [X]),
 			Mod = unknown,
 			Fun = X,
-			Args = []
+			Arity = 0
 	end,
-
-	Arity = length(Args),
 	Key = {Pid, {Mod, Fun, Arity}},
 	ets:insert(State#tcstate.proctable, Key),
+	%% also include a link from the creator process to the created.
+	ets:insert(State#tcstate.linktable, {{Creator, Pid}, 1}),
 	State;
 handle_trace_message(Msg, State) ->
 	%%io:format("msg = ~p ~n", [Msg]),
