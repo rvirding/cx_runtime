@@ -40,8 +40,7 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 			{Mod, Fun, Arity} = proc_lib:translate_initial_call(Pid),
 			ok;
 		{erlang, apply, [Fun, Args]} ->
-			Arity = length(Args),
-			Mod = erlang;
+			{Mod, Fun, Arity} = decode_anon_fun(Fun);
 		{Mod, Fun, Args} ->
 			Arity = length(Args),
 			ok;
@@ -98,8 +97,15 @@ update_proc_table([Pid | Tail], State) ->
 	case ets:lookup(State#tcstate.proctable, Pid) of
 		[] ->
 			case local_process_info(Pid, initial_call) of
-				{initial_call, {Mod, Fun, Arity}} ->
-					ok;
+				{initial_call, MFA} ->
+					case MFA of 
+						{proc_lib, init_p, _} ->
+							{Mod, Fun, Arity} = proc_lib:translate_initial_call(Pid);
+						{erlang, apply, Anon} ->
+							{Mod, Fun, Arity} = decode_anon_fun(Anon);
+						{Mod, Fun, Arity} ->
+							ok
+					end;
 				_X ->
 					Mod = unknown,
 					Fun = Pid,
@@ -120,3 +126,14 @@ local_process_info(Pid, reductions) when is_port(Pid) ->
 local_process_info(Pid, initial_call) when is_port(Pid) ->
 	Info = erlang:port_info(Pid),
 	{initial_call, {port, proplists:get_value(name, Info), 0}}.
+	
+decode_anon_fun(Fun) ->
+	Str = lists:flatten(io_lib:format("~p", [Fun])),
+	case string:tokens(Str, "<") of
+		["#Fun", Name] ->
+			[Mod, _] = string:tokens(Name, ".");
+		_X ->
+			Mod = "anon_function"
+	end,
+	{Mod, Fun, 0}.
+	
