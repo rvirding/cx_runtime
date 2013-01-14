@@ -100,7 +100,8 @@ update_proc_table([Pid | Tail], State) ->
 				{initial_call, MFA} ->
 					case MFA of 
 						{proc_lib, init_p, _} ->
-							{Mod, Fun, Arity} = proc_lib:translate_initial_call(Pid);
+							io:format("trying to get initial info for pid ~p ~n", [Pid]),
+							{Mod, Fun, Arity} = local_translate_initial_call(Pid);
 						{erlang, apply, Anon} ->
 							{Mod, Fun, Arity} = decode_anon_fun(Anon);
 						{Mod, Fun, Arity} ->
@@ -126,6 +127,11 @@ local_process_info(Pid, reductions) when is_port(Pid) ->
 local_process_info(Pid, initial_call) when is_port(Pid) ->
 	Info = erlang:port_info(Pid),
 	{initial_call, {port, proplists:get_value(name, Info), 0}}.
+	
+local_translate_initial_call(Pid) when is_pid(Pid) ->
+	proc_lib:translate_initial_call(Pid);
+local_translate_initial_call(Pid) when is_atom(Pid) ->
+	proc_lib:translate_initial_call(whereis(Pid)).
 	
 decode_anon_fun(Fun) ->
 	Str = lists:flatten(io_lib:format("~p", [Fun])),
