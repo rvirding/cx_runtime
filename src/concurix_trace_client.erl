@@ -37,7 +37,7 @@ handle_trace_message({trace, Pid, exit, Reason}, State) ->
 handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 	case Data of 
 		{proc_lib, init_p, _ProcInfo} ->
-			{Mod, Fun, Arity} = proc_lib:translate_initial_call(Pid),
+			{Mod, Fun, Arity} = local_translate_initial_call(Pid),
 			ok;
 		{erlang, apply, [TempFun, Args]} ->
 			{Mod, Fun, Arity} = decode_anon_fun(TempFun);
@@ -50,7 +50,8 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 			Fun = X,
 			Arity = 0
 	end,
-	Key = {Pid, {Mod, Fun, Arity}},
+	Service = mod_to_service(Mod),
+	Key = {Pid, {Mod, Fun, Arity}, Service},
 	ets:insert(State#tcstate.proctable, Key),
 	%% also include a link from the creator process to the created.
 	ets:insert(State#tcstate.linktable, {{Creator, Pid}, 1}),
@@ -63,7 +64,7 @@ send_summary(State)->
 	Procs  = ets:tab2list(State#tcstate.proctable),
 	Links = ets:tab2list(State#tcstate.linktable),
 	
-	TempProcs = [ [{name, pid_to_s(Pid)}, {module, term_to_s(M)}, {function, term_to_s(F)}, {arity, A}, local_process_info(Pid, reductions)] || {Pid, {M, F, A}} <- Procs ],
+	TempProcs = [ [{name, pid_to_s(Pid)}, {module, term_to_s(M)}, {function, term_to_s(F)}, {arity, A}, local_process_info(Pid, reductions), {service, Service}] || {Pid, {M, F, A}, Service} <- Procs ],
 	TempLinks = [ [{source, pid_to_s(A)}, {target, pid_to_s(B)}, {value, C}] || {{A, B}, C} <- Links],
 	
 	Send = [{nodes, TempProcs}, {links, TempLinks}],
@@ -100,10 +101,11 @@ update_proc_table([Pid | Tail], State) ->
 				{initial_call, MFA} ->
 					case MFA of 
 						{proc_lib, init_p, _} ->
-							io:format("trying to get initial info for pid ~p ~n", [Pid]),
 							{Mod, Fun, Arity} = local_translate_initial_call(Pid);
-						{erlang, apply, Anon} ->
-							{Mod, Fun, Arity} = decode_anon_fun(Anon);
+						{erlang, apply, _} ->
+							%% we lost the original MFA, take a best guess from the
+							%% current function
+							{current_function, {Mod, Fun, Arity}} = local_process_info(Pid, current_function);
 						{Mod, Fun, Arity} ->
 							ok
 					end;
@@ -112,16 +114,36 @@ update_proc_table([Pid | Tail], State) ->
 					Fun = Pid,
 					Arity = 0
 			end,
-			ets:insert(State#tcstate.proctable, {Pid, {Mod, Fun, Arity}});
+			Service = mod_to_service(Mod),
+			ets:insert(State#tcstate.proctable, {Pid, {Mod, Fun, Arity}, Service});
 		_X ->
 			ok
 	end,
 	update_proc_table(Tail, State).
 	
-local_process_info(Pid, Key) when is_pid(Pid) ->
-	process_info(Pid, Key);
+local_process_info(Pid, reductions) when is_pid(Pid) ->
+	case process_info(Pid, reductions) of
+		undefined ->
+			{reductions, 1};
+		X ->
+			X
+	end;
+local_process_info(Pid, initial_call) when is_pid(Pid) ->
+	case process_info(Pid, initial_call) of
+		undefined ->
+			{initial_call, {unknown, unknown, 0}};
+		X ->
+			X
+	end;
+local_process_info(Pid, current_function) when is_pid(Pid) ->
+	case process_info(Pid, current_function) of
+		undefined ->
+			{current_function, {unknown, unknown, 0}};
+		X ->
+			X
+	end;
 local_process_info(Pid, Key) when is_atom(Pid) ->
-	process_info(whereis(Pid), Key);
+	local_process_info(whereis(Pid), Key);
 local_process_info(Pid, reductions) when is_port(Pid) ->
 	{reductions, 1};
 local_process_info(Pid, initial_call) when is_port(Pid) ->
@@ -138,8 +160,32 @@ decode_anon_fun(Fun) ->
 	case string:tokens(Str, "<") of
 		["#Fun", Name] ->
 			[Mod | _] = string:tokens(Name, ".");
-		_X ->
+		X ->
+			io:format("yikes, could not decode ~p of ~p ~n", [Fun, Str]),
 			Mod = "anon_function"
 	end,
 	{Mod, Str, 0}.
+	
+mod_to_service(Mod) when is_list(Mod)->
+	mod_to_service(list_to_atom(Mod));
+mod_to_service(Mod) ->
+	case lists:keyfind(Mod, 1, code:all_loaded()) of
+	 	false->
+			Mod;
+		{_, Path} ->
+			path_to_service(Path)
+	end.
+	
+path_to_service(preloaded) ->
+	preloaded;
+path_to_service(Path) ->
+	Tokens = string:tokens(Path, "/"),
+	case lists:reverse(Tokens) of 
+		[_, "ebin", Service | _] ->
+			Service;
+		[Service | _] ->
+			Service;
+		_X ->
+			Path
+	end.
 	
