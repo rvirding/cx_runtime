@@ -32,7 +32,7 @@ handle_trace_message({trace, Sender, send, Data, Recipient}, State) ->
 	State;
 handle_trace_message({trace, Pid, exit, Reason}, State) ->
 	ets:select_delete(State#tcstate.linktable, [ { {{'_', Pid},'_'}, [], [true]}, { {{Pid, '_'}, '_'}, [], [true] } ]),
-	ets:select_delete(State#tcstate.proctable, [ { {Pid, '_'}, [], [true]}]),
+	ets:select_delete(State#tcstate.proctable, [ { {Pid, '_', '_'}, [], [true]}]),
 	State;
 handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 	case Data of 
