@@ -54,6 +54,7 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 	Key = {Pid, {Mod, Fun, Arity}, Service},
 	ets:insert(State#tcstate.proctable, Key),
 	%% also include a link from the creator process to the created.
+	update_proc_table([Creator], State),
 	ets:insert(State#tcstate.linktable, {{Creator, Pid}, 1}),
 	State;
 handle_trace_message(Msg, State) ->
@@ -63,6 +64,8 @@ handle_trace_message(Msg, State) ->
 send_summary(State)->
 	Procs  = ets:tab2list(State#tcstate.proctable),
 	Links = ets:tab2list(State#tcstate.linktable),
+	
+	validate_tables(State),
 	
 	TempProcs = [ [{name, pid_to_s(Pid)}, {module, term_to_s(M)}, {function, term_to_s(F)}, {arity, A}, local_process_info(Pid, reductions), {service, Service}] || {Pid, {M, F, A}, Service} <- Procs ],
 	TempLinks = [ [{source, pid_to_s(A)}, {target, pid_to_s(B)}, {value, C}] || {{A, B}, C} <- Links],
@@ -188,4 +191,8 @@ path_to_service(Path) ->
 		_X ->
 			Path
 	end.
-	
+
+validate_tables(State) ->
+	Links = ets:tab2list(State#tcstate.linktable),
+	Check = [[A, B] || {{A, B}, _} <- Links],
+	update_proc_table(lists:flatten(Check), State).	
