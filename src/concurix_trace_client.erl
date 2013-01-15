@@ -22,7 +22,7 @@ start_trace_client() ->
 	ok.
 
 handle_trace_message({trace, Sender, send, Data, Recipient}, State) ->
-	update_proc_table([Sender, Recipient], State),
+	update_proc_table([Sender, Recipient], State, []),
 	case ets:lookup(State#tcstate.linktable, {Sender, Recipient}) of
 		[] ->
 			ets:insert(State#tcstate.linktable, {{Sender, Recipient}, 1});
@@ -31,8 +31,12 @@ handle_trace_message({trace, Sender, send, Data, Recipient}, State) ->
 	end,	
 	State;
 handle_trace_message({trace, Pid, exit, Reason}, State) ->
+	ets:safe_fixtable(State#tcstate.proctable, true),
+	ets:safe_fixtable(State#tcstate.linktable, true),	
 	ets:select_delete(State#tcstate.linktable, [ { {{'_', Pid},'_'}, [], [true]}, { {{Pid, '_'}, '_'}, [], [true] } ]),
 	ets:select_delete(State#tcstate.proctable, [ { {Pid, '_', '_'}, [], [true]}]),
+	ets:safe_fixtable(State#tcstate.linktable, false),		
+	ets:safe_fixtable(State#tcstate.proctable, false),	
 	State;
 handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 	case Data of 
@@ -54,7 +58,7 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 	Key = {Pid, {Mod, Fun, Arity}, Service},
 	ets:insert(State#tcstate.proctable, Key),
 	%% also include a link from the creator process to the created.
-	update_proc_table([Creator], State),
+	update_proc_table([Creator], State, []),
 	ets:insert(State#tcstate.linktable, {{Creator, Pid}, 1}),
 	State;
 handle_trace_message(Msg, State) ->
@@ -62,14 +66,21 @@ handle_trace_message(Msg, State) ->
 	State.
 	
 send_summary(State)->
-	Procs  = ets:tab2list(State#tcstate.proctable),
-	Links = ets:tab2list(State#tcstate.linktable),
+	ets:safe_fixtable(State#tcstate.proctable, true),
+	ets:safe_fixtable(State#tcstate.linktable, true),
+
+	RawProcs  = ets:tab2list(State#tcstate.proctable),
+	RawLinks  = ets:tab2list(State#tcstate.linktable),
+
+	{Procs, Links} = validate_tables(RawProcs, RawLinks, State),
 	
-	validate_tables(State),
-	
+	ets:safe_fixtable(State#tcstate.linktable, false),		
+	ets:safe_fixtable(State#tcstate.proctable, false),
+
 	TempProcs = [ [{name, pid_to_s(Pid)}, {module, term_to_s(M)}, {function, term_to_s(F)}, {arity, A}, local_process_info(Pid, reductions), {service, Service}] || {Pid, {M, F, A}, Service} <- Procs ],
 	TempLinks = [ [{source, pid_to_s(A)}, {target, pid_to_s(B)}, {value, C}] || {{A, B}, C} <- Links],
 	
+		
 	Send = [{nodes, TempProcs}, {links, TempLinks}],
 
 	Data = lists:flatten(io_lib:format("~p", [Send])),
@@ -95,34 +106,18 @@ term_to_s(Term) ->
 	lists:flatten(io_lib:format("~p", [Term])).	
 %
 %
-update_proc_table([], State) ->
-	ok;
-update_proc_table([Pid | Tail], State) ->
+update_proc_table([], State, Acc) ->
+	Acc;
+update_proc_table([Pid | Tail], State, Acc) ->
 	case ets:lookup(State#tcstate.proctable, Pid) of
 		[] ->
-			case local_process_info(Pid, initial_call) of
-				{initial_call, MFA} ->
-					case MFA of 
-						{proc_lib, init_p, _} ->
-							{Mod, Fun, Arity} = local_translate_initial_call(Pid);
-						{erlang, apply, _} ->
-							%% we lost the original MFA, take a best guess from the
-							%% current function
-							{current_function, {Mod, Fun, Arity}} = local_process_info(Pid, current_function);
-						{Mod, Fun, Arity} ->
-							ok
-					end;
-				_X ->
-					Mod = unknown,
-					Fun = Pid,
-					Arity = 0
-			end,
-			Service = mod_to_service(Mod),
+			[{Pid, {Mod, Fun, Arity}, Service}] = update_process_info(Pid),
+			NewAcc = Acc ++ [{Pid, {Mod, Fun, Arity}, Service}],
 			ets:insert(State#tcstate.proctable, {Pid, {Mod, Fun, Arity}, Service});
 		_X ->
-			ok
+			NewAcc = Acc
 	end,
-	update_proc_table(Tail, State).
+	update_proc_table(Tail, State, NewAcc).
 	
 local_process_info(Pid, reductions) when is_pid(Pid) ->
 	case process_info(Pid, reductions) of
@@ -192,7 +187,37 @@ path_to_service(Path) ->
 			Path
 	end.
 
-validate_tables(State) ->
-	Links = ets:tab2list(State#tcstate.linktable),
-	Check = [[A, B] || {{A, B}, _} <- Links],
-	update_proc_table(lists:flatten(Check), State).	
+update_process_info(Pid) ->
+	update_process_info([Pid], []).
+update_process_info([], Acc) ->
+	Acc;
+update_process_info([Pid | T], Acc) ->
+	case local_process_info(Pid, initial_call) of
+		{initial_call, MFA} ->
+			case MFA of 
+				{proc_lib, init_p, _} ->
+					{Mod, Fun, Arity} = local_translate_initial_call(Pid);
+				{erlang, apply, _} ->
+					%% we lost the original MFA, take a best guess from the
+					%% current function
+					{current_function, {Mod, Fun, Arity}} = local_process_info(Pid, current_function);
+				{Mod, Fun, Arity} ->
+					ok
+			end;
+		_X ->
+			Mod = unknown,
+			Fun = Pid,
+			Arity = 0
+	end,
+	Service = mod_to_service(Mod),
+	NewAcc = Acc ++ [{Pid, {Mod, Fun, Arity}, Service}],
+	update_process_info(T, NewAcc).
+		
+validate_tables(Procs, Links, State) ->
+	Val = lists:flatten([[A, B] || {{A, B}, _} <- Links]),
+	Tempprocs = lists:usort([ A || {A, _, _} <-Procs ]),
+	Templinks = lists:usort(Val),
+	Updateprocs = Templinks -- Tempprocs,	
+	
+	NewProcs = update_process_info(Updateprocs, []),
+	{Procs ++ NewProcs, Links}.	
