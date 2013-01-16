@@ -1,0 +1,9 @@
+{application, concurix_trace, [
+    {description, ""},
+    {vsn, "1"},
+    {modules, [concurix_trace_socket_handler]},
+    {registered, []},
+    {applications, [kernel,stdlib,crypto,cowboy, ranch]},
+    {mod, { concurix_trace_app, []}},
+    {env, []}
+]}.
