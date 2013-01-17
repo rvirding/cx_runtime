@@ -16,7 +16,7 @@ start(_StartType, _StartArgs) ->
     ]}],
     %% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
     cowboy:start_http(cx_ws_dispatcher, 100,
-        [{port, 8003}],
+        [{port, 6788}],
         [{env, [{dispatch, Dispatch}]}]
     ),
     concurix_trace_sup:start_link().
