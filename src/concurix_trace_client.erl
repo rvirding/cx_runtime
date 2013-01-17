@@ -78,8 +78,8 @@ send_summary(State)->
 	ets:safe_fixtable(State#tcstate.linktable, false),		
 	ets:safe_fixtable(State#tcstate.proctable, false),
 
-	TempProcs = [ [{name, pid_to_s(Pid)}, {module, term_to_s(M)}, {function, term_to_s(F)}, {arity, A}, local_process_info(Pid, reductions), {service, Service}] || {Pid, {M, F, A}, Service} <- Procs ],
-	TempLinks = [ [{source, pid_to_s(A)}, {target, pid_to_s(B)}, {value, C}] || {{A, B}, C} <- Links],
+	TempProcs = [ [{name, pid_to_b(Pid)}, {module, term_to_b(M)}, {function, term_to_b(F)}, {arity, A}, term_to_b(local_process_info(Pid, reductions)), term_to_b({service, Service})] || {Pid, {M, F, A}, Service} <- Procs ],
+	TempLinks = [ [{source, pid_to_b(A)}, {target, pid_to_b(B)}, {value, C}] || {{A, B}, C} <- Links],
 	
 		
 	Send = [{nodes, TempProcs}, {links, TempLinks}],
@@ -99,15 +99,19 @@ send_summary(State)->
 			{Mega, Secs, Micro} = now(), 
 			lists:flatten(io_lib:format("local-~p-~p-~p",[Mega, Secs, Micro]))
 	end,
-	
+	Json = lists:flatten(mochijson2:encode([{data, Send}])),
 	%%now send to the websocket
-	concurix_trace_socket:send(RunId, Send).
+	concurix_trace_socket:send(RunId, Json).
 	
-pid_to_s(Pid) ->
-	lists:flatten(io_lib:format("~p", [Pid])).
+pid_to_b(Pid) ->
+	list_to_binary(lists:flatten(io_lib:format("~p", [Pid]))).
 
-term_to_s(Term) ->
-	lists:flatten(io_lib:format("~p", [Term])).	
+term_to_b({Key, Value}) ->
+	Bin = term_to_b(Value),
+	{Key, Bin};
+term_to_b(Term) ->
+	list_to_binary(lists:flatten(io_lib:format("~p", [Term]))).
+		
 %
 %
 update_proc_table([], State, Acc) ->

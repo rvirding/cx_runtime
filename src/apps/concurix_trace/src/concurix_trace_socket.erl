@@ -9,13 +9,11 @@ start() ->
 	application:start(gproc),
 	application:start(concurix_trace).
 	
-send(Benchrun_id, Data) ->
+send(Benchrun_id, Json) ->
 	case gproc:lookup_pids({n, l, "benchrun-"}) of
 		[] ->
 			ok;
 		_X ->
-			io:format("beginning data ~p ~n", [Data]),
-			Json = lists:flatten(mochijson2:encode(Data)),
-			io:format("json to send ~p ~n", [Json]),
 			gproc:send({n, l, "benchrun-"}, {trace, Json})
 	end.
+	

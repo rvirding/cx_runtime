@@ -15,10 +15,11 @@ start(_StartType, _StartArgs) ->
         {'_', concurix_trace_socket_handler, []}
     ]}],
     %% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
-    cowboy:start_http(cx_ws_dispatcher, 100,
+    Res = cowboy:start_http(cx_ws_dispatcher, 100,
         [{port, 6788}],
         [{env, [{dispatch, Dispatch}]}]
     ),
+	io:format("XXXXXXX Result from opening cowboy port ~p ~n", [Res]),
     concurix_trace_sup:start_link().
 
 stop(_State) ->
