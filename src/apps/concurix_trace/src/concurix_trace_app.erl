@@ -3,7 +3,7 @@
 -behaviour(application).
 
 %% Application callbacks
--export([start/2, stop/1, start/0]).
+-export([start/2, stop/1]).
 
 %% ===================================================================
 %% Application callbacks
@@ -23,9 +23,3 @@ start(_StartType, _StartArgs) ->
 
 stop(_State) ->
     ok.
-
-start() ->
-	crypto:start(),
-	application:start(ranch),
-	application:start(cowboy),
-	application:start(concurix_trace).

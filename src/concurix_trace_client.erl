@@ -9,6 +9,7 @@ stop_trace_client() ->
 	dbg:stop_clear().
 	
 start_trace_client() ->
+	concurix_trace_socket:start(),
 	dbg:start(),
 	Stats = ets:new(linkstats, [public, named_table]),
 	Procs = ets:new(procinfo, [public, named_table]),
@@ -97,7 +98,10 @@ send_summary(State)->
 		_X ->
 			{Mega, Secs, Micro} = now(), 
 			lists:flatten(io_lib:format("local-~p-~p-~p",[Mega, Secs, Micro]))
-	end.
+	end,
+	
+	%%now send to the websocket
+	concurix_trace_socket:send(RunId, Send).
 	
 pid_to_s(Pid) ->
 	lists:flatten(io_lib:format("~p", [Pid])).

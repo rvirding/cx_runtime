@@ -8,6 +8,7 @@
 ]).
 
 init({tcp, http}, Req, _Opts) ->
+	gproc:reg({n, l, "benchrun-"} ),
 	{upgrade, protocol, cowboy_websocket}.
 
 handle(Req, State) ->
@@ -28,8 +29,11 @@ websocket_handle({text, Msg}, Req, State) ->
 websocket_handle(_Any, Req, State) ->
     {ok, Req, State}.
 
+websocket_info({trace, Data}, Req, State) ->	
+    {reply,{text, list_to_binary(Data)}, Req, State, hibernate};
+
 websocket_info(_Info, Req, State) ->
-    {ok, Req, State, hibernate}.
+	{ok, Req, State, hibernate}.
 
 websocket_terminate(_Reason, _Req, _State) ->
     ok.
