@@ -7,7 +7,7 @@ start() ->
 	application:start(ranch),
 	application:start(cowboy),
 	application:start(gproc),
-	application:start(concurix_trace).
+	application:start(concurix_runtime).
 	
 send(Benchrun_id, Json) ->
 	case gproc:lookup_pids({n, l, "benchrun-"}) of

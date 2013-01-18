@@ -11,22 +11,24 @@
              concurix_runtime,
              concurix_trace,
              concurix_transform,
-			 concurix_trace_client
+			 concurix_trace_client,
+			 concurix_trace_socket,
+			 concurix_trace_app,
+			 concurix_trace_sup
              ]},
   {registered, []},
   {included_applications, [
                            erlcloud,
-                           purity,
-						   concurix_trace
+                           purity
                            ]},
   {applications, [
-                  compiler,
                   kernel,
                   stdlib,
 				  crypto,
 				  ranch,
 				  cowboy
                  ]},
-  {env, []}
+  {env, []},
+  {mod, {concurix_runtime_app, []}}
  ]}.
 

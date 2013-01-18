@@ -1,4 +1,4 @@
--module(concurix_trace_app).
+-module(concurix_runtime_app).
 
 -behaviour(application).
 
@@ -20,7 +20,7 @@ start(_StartType, _StartArgs) ->
         [{env, [{dispatch, Dispatch}]}]
     ),
 	io:format("XXXXXXX Result from opening cowboy port ~p ~n", [Res]),
-    concurix_trace_sup:start_link().
+    concurix_runtime_sup:start_link().
 
 stop(_State) ->
     ok.

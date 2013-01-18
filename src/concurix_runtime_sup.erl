@@ -1,4 +1,4 @@
--module(concurix_trace_sup).
+-module(concurix_runtime_sup).
 
 -behaviour(supervisor).
 
