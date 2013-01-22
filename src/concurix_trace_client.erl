@@ -1,6 +1,6 @@
 -module(concurix_trace_client).
 
--export([start_trace_client/0, send_summary/1, stop_trace_client/0]).
+-export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_trace_client/0]).
 
 -record(tcstate, {proctable, linktable, runinfo}).
 
@@ -19,7 +19,11 @@ start_trace_client() ->
 	
 	Pid = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
 	dbg:p(all, [s,p]),
+	
+	%% every two seconds send a web socket update.  every two minutes save to s3.
+	
 	timer:apply_interval(2000, concurix_trace_client, send_summary, [State]),
+	timer:apply_interval(120000, concurix_trace_client, send_snapshot, [State]),
 	ok.
 
 handle_trace_message({trace, Sender, send, Data, Recipient}, State) ->
@@ -66,7 +70,7 @@ handle_trace_message(Msg, State) ->
 	%%io:format("msg = ~p ~n", [Msg]),
 	State.
 	
-send_summary(State)->
+get_current_json(State) ->
 	ets:safe_fixtable(State#tcstate.proctable, true),
 	ets:safe_fixtable(State#tcstate.linktable, true),
 
@@ -85,23 +89,23 @@ send_summary(State)->
 	Send = [{nodes, TempProcs}, {links, TempLinks}],
 
 	Data = lists:flatten(io_lib:format("~p", [Send])),
+	lists:flatten(mochijson2:encode([{data, Send}])).
 
-	Encoded = "data=" ++ http_uri:encode(Data),
-	RunId   = proplists:get_value(run_id, State#tcstate.runinfo),
-	[{api_key, APIkey}] = 			ets:lookup(concurix_config_master, api_key),
-	
-	Url = "http://localhost:8001/bench/process_graph_data/" ++ RunId ++ "/" ++ APIkey,
-	Reply = httpc:request(post, {Url, [], "application/x-www-form-urlencoded", Encoded}, [], []),
-	case Reply of
-		{_, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} -> 
-			ok = concurix_compile:eval_string(Body);
-		_X ->
-			{Mega, Secs, Micro} = now(), 
-			lists:flatten(io_lib:format("local-~p-~p-~p",[Mega, Secs, Micro]))
-	end,
-	Json = lists:flatten(mochijson2:encode([{data, Send}])),
+send_summary(State)->
+	Json 		= get_current_json(State),
+	Run_id 		= proplists:get_value(run_id, State#tcstate.runinfo),	
 	%%now send to the websocket
-	concurix_trace_socket:send(RunId, Json).
+	concurix_trace_socket:send(Run_id, Json).
+	
+send_snapshot(State) ->
+	Json	 	= get_current_json(State),
+	Run_id 		= proplists:get_value(run_id, State#tcstate.runinfo),
+	Url 		= proplists:get_value(trace_url, State#tcstate.runinfo),
+	Fields 		= proplists:get_value(fields, State#tcstate.runinfo),
+	{Mega, Secs, Micro} = now(),
+	Key 		= lists:flatten(io_lib:format("json_realtime_trace_snapshot.~p-~p-~p-~p",[node(), Mega, Secs, Micro])),
+	
+	concurix_file:transmit_data_to_s3(Run_id, Key, list_to_binary(Json), Url, Fields).
 	
 pid_to_b(Pid) ->
 	list_to_binary(lists:flatten(io_lib:format("~p", [Pid]))).

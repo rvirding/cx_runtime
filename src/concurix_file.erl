@@ -1,12 +1,25 @@
 -module(concurix_file).
 
--export([transmit_to_s3/5, transmit_dir_to_s3/4, permissioned_transmit_dir_to_s3/3]).
+-export([transmit_data_to_s3/5, transmit_to_s3/5, transmit_dir_to_s3/4, permissioned_transmit_dir_to_s3/3]).
 -export([recursively_list_dir/1,
          recursively_list_dir/2]).
 
 % @type name() = string() | atom() | binary().
 -type name() :: string() | atom() | binary().
 
+transmit_data_to_s3(Run_id, Key, Data, Url, Fields) ->
+	inets:start(),
+	ssl:start(),
+	
+	SendFields = update_fields(Run_id, Fields, Key),
+	
+	Request = erlcloud_s3:make_post_http_request(Url, SendFields, Data),
+	Res = httpc:request(
+			post,
+			Request,
+			[{timeout, 60000}],
+			[{sync, true}]).
+	
 %%
 %% transmit directory to s3 **assuming** that erlcloud_s3:configure has been called with 
 %% appropriate permissions by the calling process
