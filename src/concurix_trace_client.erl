@@ -212,7 +212,11 @@ update_process_info([Pid | T], Acc) ->
 				{erlang, apply, _} ->
 					%% we lost the original MFA, take a best guess from the
 					%% current function
-					{current_function, {Mod, Fun, Arity}} = local_process_info(Pid, current_function);
+					case local_process_info(Pid, current_function) of
+						{current_function, {Mod, Fun, Arity}} -> ok;
+						X -> io:format("got unknown current function results of ~p ~n", [X]),
+							{Mod, Fun, Arity} = {erlang, apply, 0}
+					end;
 				{Mod, Fun, Arity} ->
 					ok
 			end;
