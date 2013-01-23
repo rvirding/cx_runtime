@@ -1,8 +1,8 @@
 -module(concurix_trace_client).
 
--export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_trace_client/0]).
+-export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_trace_client/0, handle_system_profile/1]).
 
--record(tcstate, {proctable, linktable, runinfo}).
+-record(tcstate, {proctable, linktable, sptable, runinfo, sp_pid}).
 
 stop_trace_client() ->
 	%% TODO when this is a gen server clean up the ets tables too 
@@ -13,12 +13,16 @@ start_trace_client() ->
 	dbg:start(),
 	Stats = ets:new(linkstats, [public, named_table]),
 	Procs = ets:new(procinfo, [public, named_table]),
-	%% TODO -- use real auth, send to both s3 for storage as well as cx for dynamic display
-	RunInfo = concurix_run:get_run_info(),	
-	State = #tcstate{proctable = Procs, linktable = Stats, runinfo = RunInfo},
+	Prof  = ets:new(sysprof, [public, named_table]),
 	
+	RunInfo = concurix_run:get_run_info(),	
+	Sp_pid = spawn(concurix_trace_client, handle_system_profile, [Prof]),
+	State = #tcstate{proctable = Procs, linktable = Stats, sptable = Prof, runinfo = RunInfo, sp_pid = Sp_pid},
+	
+	%% now turn on the tracing
 	Pid = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
 	dbg:p(all, [s,p]),
+	erlang:system_profile(Sp_pid, [concurix]),
 	
 	%% every two seconds send a web socket update.  every two minutes save to s3.
 	
@@ -26,6 +30,17 @@ start_trace_client() ->
 	timer:apply_interval(120000, concurix_trace_client, send_snapshot, [State]),
 	ok.
 
+handle_system_profile(Proftable) ->
+    receive
+      { profile, concurix, Id,  Summary, TimestampStart, TimestampStop } ->
+		ets:insert(Proftable, {Id, {Summary, TimestampStart, TimestampStop}}),
+        io:format("PROFILE-SUMMARY:  ~p ~p ~p ~p~n", [TimestampStart, TimestampStop, Id, Summary]),
+        handle_system_profile(Proftable);
+      Other ->
+        io:format("OTHER:    ~p~n", [Other]),
+        handle_system_profile(Proftable)
+    end.
+	
 handle_trace_message({trace, Sender, send, Data, Recipient}, State) ->
 	update_proc_table([Sender, Recipient], State, []),
 	case ets:lookup(State#tcstate.linktable, {Sender, Recipient}) of
@@ -35,7 +50,7 @@ handle_trace_message({trace, Sender, send, Data, Recipient}, State) ->
 			ets:update_counter(State#tcstate.linktable, {Sender, Recipient}, 1)
 	end,	
 	State;
-handle_trace_message({trace, Pid, exit, Reason}, State) ->
+handle_trace_message({trace, Pid, exit, _Reason}, State) ->
 	ets:safe_fixtable(State#tcstate.proctable, true),
 	ets:safe_fixtable(State#tcstate.linktable, true),	
 	ets:select_delete(State#tcstate.linktable, [ { {{'_', Pid},'_'}, [], [true]}, { {{Pid, '_'}, '_'}, [], [true] } ]),
@@ -73,20 +88,24 @@ handle_trace_message(Msg, State) ->
 get_current_json(State) ->
 	ets:safe_fixtable(State#tcstate.proctable, true),
 	ets:safe_fixtable(State#tcstate.linktable, true),
+	ets:safe_fixtable(State#tcstate.sptable, true),
 
 	RawProcs  = ets:tab2list(State#tcstate.proctable),
 	RawLinks  = ets:tab2list(State#tcstate.linktable),
+	RawSys	  = ets:tab2list(State#tcstate.sptable),
 
 	{Procs, Links} = validate_tables(RawProcs, RawLinks, State),
 	
 	ets:safe_fixtable(State#tcstate.linktable, false),		
 	ets:safe_fixtable(State#tcstate.proctable, false),
+	ets:safe_fixtable(State#tcstate.sptable, false),
 
 	TempProcs = [ [{name, pid_to_b(Pid)}, {module, term_to_b(M)}, {function, term_to_b(F)}, {arity, A}, term_to_b(local_process_info(Pid, reductions)), term_to_b({service, Service})] || {Pid, {M, F, A}, Service} <- Procs ],
 	TempLinks = [ [{source, pid_to_b(A)}, {target, pid_to_b(B)}, {value, C}] || {{A, B}, C} <- Links],
+	Schedulers = [ [{scheduler, Id}, {quanta_count, QCount}, {quanta_time, QTime}, {send, Send}, {gc, GC}, {true_call_count, True}, {tail_call_count, Tail}, {return_count, Return}, {process_free, Free}] || {Id, {[QCount, QTime, Send, GC, True, Tail, Return, Free], _, _}} <- RawSys ],
 	
 		
-	Send = [{nodes, TempProcs}, {links, TempLinks}],
+	Send = [{nodes, TempProcs}, {links, TempLinks}, {schedulers, Schedulers}],
 
 	Data = lists:flatten(io_lib:format("~p", [Send])),
 	lists:flatten(mochijson2:encode([{data, Send}])).
@@ -103,7 +122,7 @@ send_snapshot(State) ->
 	Url 		= proplists:get_value(trace_url, State#tcstate.runinfo),
 	Fields 		= proplists:get_value(fields, State#tcstate.runinfo),
 	{Mega, Secs, Micro} = now(),
-	Key 		= lists:flatten(io_lib:format("json_realtime_trace_snapshot.~p-~p-~p-~p",[node(), Mega, Secs, Micro])),
+	Key 		= lists:flatten(io_lib:format("json_realtime_trace_snapshot.~p.~p-~p-~p",[node(), Mega, Secs, Micro])),
 	
 	concurix_file:transmit_data_to_s3(Run_id, Key, list_to_binary(Json), Url, Fields).
 	

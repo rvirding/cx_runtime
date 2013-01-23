@@ -78,7 +78,12 @@ send_file(File, Run_id, Url, Fields) ->
 	ok.
 	
 update_fields(Run_id, Fields, File) ->
-	Temp = proplists:delete(key, Fields),
+	case proplists:is_defined(key, Fields) of
+		true ->
+			Temp = proplists:delete(key, Fields);
+		false -> 
+			Temp = Fields
+	end,
 	Temp ++ [{key, Run_id ++ "/" ++ File}].
 
 %%
