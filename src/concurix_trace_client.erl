@@ -34,7 +34,7 @@ handle_system_profile(Proftable) ->
     receive
       { profile, concurix, Id,  Summary, TimestampStart, TimestampStop } ->
 		ets:insert(Proftable, {Id, {Summary, TimestampStart, TimestampStop}}),
-        io:format("PROFILE-SUMMARY:  ~p ~p ~p ~p~n", [TimestampStart, TimestampStop, Id, Summary]),
+        %%io:format("PROFILE-SUMMARY:  ~p ~p ~p ~p~n", [TimestampStart, TimestampStop, Id, Summary]),
         handle_system_profile(Proftable);
       Other ->
         io:format("OTHER:    ~p~n", [Other]),
@@ -100,10 +100,11 @@ get_current_json(State) ->
 	ets:safe_fixtable(State#tcstate.proctable, false),
 	ets:safe_fixtable(State#tcstate.sptable, false),
 
+	%%io:format("scheduler info = ~p ~n", [RawSys]),
 	TempProcs = [ [{name, pid_to_b(Pid)}, {module, term_to_b(M)}, {function, term_to_b(F)}, {arity, A}, term_to_b(local_process_info(Pid, reductions)), term_to_b({service, Service})] || {Pid, {M, F, A}, Service} <- Procs ],
 	TempLinks = [ [{source, pid_to_b(A)}, {target, pid_to_b(B)}, {value, C}] || {{A, B}, C} <- Links],
-	Schedulers = [ [{scheduler, Id}, {quanta_count, QCount}, {quanta_time, QTime}, {send, Send}, {gc, GC}, {true_call_count, True}, {tail_call_count, Tail}, {return_count, Return}, {process_free, Free}] || {Id, {[QCount, QTime, Send, GC, True, Tail, Return, Free], _, _}} <- RawSys ],
-	
+	Schedulers = [ [{scheduler, Id}, {process_create, Create}, {quanta_count, QCount}, {quanta_time, QTime}, {send, Send}, {gc, GC}, {true_call_count, True}, {tail_call_count, Tail}, {return_count, Return}, {process_free, Free}] || {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
+	%%io:format("scheduler json = ~p ~n", [Schedulers]),
 		
 	Send = [{nodes, TempProcs}, {links, TempLinks}, {schedulers, Schedulers}],
 
