@@ -133,6 +133,13 @@ pid_to_b(Pid) ->
 term_to_b({Key, Value}) ->
 	Bin = term_to_b(Value),
 	{Key, Bin};
+term_to_b(Val) when is_list(Val) ->
+	case io_lib:printable_list(Val) of
+		true ->
+			list_to_binary(Val);
+		false ->
+			List = [ term_to_b(X) || X <- Val]
+	end;	
 term_to_b(Term) ->
 	list_to_binary(lists:flatten(io_lib:format("~p", [Term]))).
 		
