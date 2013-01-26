@@ -1,9 +1,26 @@
 -module(concurix_trace_client).
 
--export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_trace_client/0, handle_system_profile/1]).
+-export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_trace_client/0, handle_system_profile/1, start_full_trace/0, handle_full_trace/1]).
 
 -record(tcstate, {proctable, linktable, sptable, runinfo, sp_pid}).
 
+start_full_trace() ->
+	concurix_trace_socket:start(),
+	{ok, F} = file:open("full.trace", [write]),
+	Tracer = spawn(concurix_trace_client, handle_full_trace, [F]),
+	erlang:trace(new, true, [all, {tracer, Tracer}]).
+	
+handle_full_trace(File) ->
+	receive
+		Msg ->
+			io:format("got trace msg ~p ~n", [Msg]),
+			Res = file:write(File, list_to_binary(lists:flatten(io_lib:format("~p~n", [Msg])))),
+			file:datasync(File),
+			io:format("file write res = ~p ~n", [Res]),
+			handle_full_trace(File);
+		_X -> ok
+	end.
+	
 stop_trace_client() ->
 	%% TODO when this is a gen server clean up the ets tables too 
 	dbg:stop_clear().
