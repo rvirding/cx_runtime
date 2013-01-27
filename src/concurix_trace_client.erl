@@ -8,13 +8,15 @@ start_full_trace() ->
 	concurix_trace_socket:start(),
 	{ok, F} = file:open("full.trace", [write]),
 	Tracer = spawn(concurix_trace_client, handle_full_trace, [F]),
-	erlang:trace(new, true, [all, {tracer, Tracer}]).
+	erlang:trace_pattern({'_','_','_'}, true, [call_time, call_count]),	
+	erlang:trace(new, true, [send, 'receive', procs, call, return_to, running, exiting, garbage_collection, timestamp, {tracer, Tracer}]).
+
 	
 handle_full_trace(File) ->
 	receive
 		Msg ->
 			io:format("got trace msg ~p ~n", [Msg]),
-			Res = file:write(File, list_to_binary(lists:flatten(io_lib:format("~p~n", [Msg])))),
+			Res = file:write(File, list_to_binary(lists:flatten(io_lib:format("~p.~n", [Msg])))),
 			file:datasync(File),
 			io:format("file write res = ~p ~n", [Res]),
 			handle_full_trace(File);
