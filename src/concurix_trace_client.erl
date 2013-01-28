@@ -18,7 +18,6 @@ handle_full_trace(File) ->
 			io:format("got trace msg ~p ~n", [Msg]),
 			Res = file:write(File, list_to_binary(lists:flatten(io_lib:format("~p.~n", [Msg])))),
 			file:datasync(File),
-			io:format("file write res = ~p ~n", [Res]),
 			handle_full_trace(File);
 		_X -> ok
 	end.
@@ -119,11 +118,11 @@ get_current_json(State) ->
 	ets:safe_fixtable(State#tcstate.proctable, false),
 	ets:safe_fixtable(State#tcstate.sptable, false),
 
-	%%io:format("scheduler info = ~p ~n", [RawSys]),
+
 	TempProcs = [ [{name, pid_to_b(Pid)}, {module, term_to_b(M)}, {function, term_to_b(F)}, {arity, A}, term_to_b(local_process_info(Pid, reductions)), term_to_b({service, Service})] || {Pid, {M, F, A}, Service} <- Procs ],
 	TempLinks = [ [{source, pid_to_b(A)}, {target, pid_to_b(B)}, {value, C}] || {{A, B}, C} <- Links],
 	Schedulers = [ [{scheduler, Id}, {process_create, Create}, {quanta_count, QCount}, {quanta_time, QTime}, {send, Send}, {gc, GC}, {true_call_count, True}, {tail_call_count, Tail}, {return_count, Return}, {process_free, Free}] || {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
-	%%io:format("scheduler json = ~p ~n", [Schedulers]),
+
 		
 	Send = [{version, 1}, {nodes, TempProcs}, {links, TempLinks}, {schedulers, Schedulers}],
 
