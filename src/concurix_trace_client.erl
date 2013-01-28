@@ -125,7 +125,7 @@ get_current_json(State) ->
 	Schedulers = [ [{scheduler, Id}, {process_create, Create}, {quanta_count, QCount}, {quanta_time, QTime}, {send, Send}, {gc, GC}, {true_call_count, True}, {tail_call_count, Tail}, {return_count, Return}, {process_free, Free}] || {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
 	%%io:format("scheduler json = ~p ~n", [Schedulers]),
 		
-	Send = [{nodes, TempProcs}, {links, TempLinks}, {schedulers, Schedulers}],
+	Send = [{version, 1}, {nodes, TempProcs}, {links, TempLinks}, {schedulers, Schedulers}],
 
 	Data = lists:flatten(io_lib:format("~p", [Send])),
 	lists:flatten(mochijson2:encode([{data, Send}])).
