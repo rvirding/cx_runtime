@@ -123,8 +123,9 @@ get_current_json(State) ->
 	TempLinks = [ [{source, pid_to_b(A)}, {target, pid_to_b(B)}, {value, C}] || {{A, B}, C} <- Links],
 	Schedulers = [ [{scheduler, Id}, {process_create, Create}, {quanta_count, QCount}, {quanta_time, QTime}, {send, Send}, {gc, GC}, {true_call_count, True}, {tail_call_count, Tail}, {return_count, Return}, {process_free, Free}] || {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
 
-		
-	Send = [{version, 1}, {nodes, TempProcs}, {links, TempLinks}, {schedulers, Schedulers}],
+	Run_id = proplists:get_value(run_id, State#tcstate.runinfo),
+	Send = [{version, 1}, {run_id, list_to_binary(Run_id)}, {nodes, TempProcs}, {links, TempLinks}, {schedulers, Schedulers}],
+	
 
 	Data = lists:flatten(io_lib:format("~p", [Send])),
 	lists:flatten(mochijson2:encode([{data, Send}])).
