@@ -11,11 +11,11 @@
 
 start(_StartType, _StartArgs) ->
     %% {Host, list({Path, Handler, Opts})}
-    Dispatch = [{'_', [
-        {'_', concurix_trace_socket_handler, []}
-    ]}],
+    Dispatch = cowboy_router:compile([{'_', [
+        {"/", concurix_trace_socket_handler, []}
+    ]}]),
     %% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
-    Res = cowboy:start_http(cx_ws_dispatcher, 100,
+    Res = cowboy:start_http(http, 100,
         [{port, 6788}],
         [{env, [{dispatch, Dispatch}]}]
     ),
