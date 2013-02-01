@@ -26,6 +26,7 @@ release:
 	scripts/release
 
 install:
+	cd deps/cowboy && make install
 	cd deps/erlcloud && make install
 	cd deps/purity && make install
 	install -d $(INSTALL_DIR)
