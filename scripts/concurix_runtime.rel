@@ -9,13 +9,18 @@
   {stdlib, "1.18.2"},
   {concurix_runtime, "0.1"},
   {compiler, "4.8.2"},
+  {cowboy, "0.7.0"},
   {crypto, "2.2"},
   {erlcloud, "0.4.1"},
+  {gproc, "0.2.15"},
   {inets, "5.9.1"},
+  {mochiweb, "2.3.0"},
   {public_key, "0.16"},
   {purity, "0.2"},
+  {ranch, "0.6.1"},
   {sasl, "2.2.1"},
   {ssl, "5.1"},
+  {syntax_tools, "1.6.9"},
   {xmerl, "1.3.2"}]}.
 
 
