@@ -9,7 +9,7 @@
 
 init({tcp, http}, Req, _Opts) ->
 	io:format("Req = ~p ~n", [Req]),
-	gproc:reg({n, l, "benchrun-"} ),
+	gproc:reg({p, l, "benchrun_tracing"} ),
 	{upgrade, protocol, cowboy_websocket}.
 
 handle(Req, State) ->

@@ -9,11 +9,11 @@ start() ->
 	application:start(gproc),
 	application:start(concurix_runtime).
 	
-send(Benchrun_id, Json) ->
-	case gproc:lookup_pids({n, l, "benchrun-"}) of
+send(_Benchrun_id, Json) ->
+	case gproc:lookup_pids({p, l, "benchrun_tracing"}) of
 		[] ->
 			ok;
 		_X ->
-			gproc:send({n, l, "benchrun-"}, {trace, Json})
+			gproc:send({p, l, "benchrun_tracing"}, {trace, Json})
 	end.
 	
