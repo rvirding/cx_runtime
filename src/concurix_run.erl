@@ -26,7 +26,7 @@ get_run_info() ->
 	inets:start(),
 	Url = "http://" ++ Server ++ "/bench/new_offline_run/" ++ APIkey,
 	Reply = httpc:request(Url),
-	io:format("url: ~p reply: ~p ~n", [Url, Reply]),
+	%%io:format("url: ~p reply: ~p ~n", [Url, Reply]),
 	case Reply of
 		{_, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} -> 
 			concurix_compile:eval_string(Body);

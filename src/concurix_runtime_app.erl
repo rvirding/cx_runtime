@@ -19,8 +19,8 @@ start(_StartType, _StartArgs) ->
         [{port, 6788}],
         [{env, [{dispatch, Dispatch}]}]
     ),
-	io:format("XXXXXXX Result from opening cowboy port ~p ~n", [Res]),
-    concurix_runtime_sup:start_link().
+    concurix_runtime_sup:start_link(),
+	Res.
 
 stop(_State) ->
     ok.

@@ -9,7 +9,7 @@
 start() ->
 	start("concurix.config").
 start(Filename) ->
-	io:format("starting Concurix Runtime~n"),
+	%%io:format("starting Concurix Runtime~n"),
 	Dirs = code:get_path(),
 	{ok, Config, _File} = file:path_consult(Dirs, Filename),
 	start_config(Config).
@@ -57,7 +57,7 @@ setup_config([{memoization, MemoConfig} | Tail]) ->
 	lists:foreach(fun(X) -> {{M, F}, Expr} = X, ets:insert(concurix_config_memo, {{M, F}, Expr}) end, MemoConfig),
 	setup_config(Tail);
 setup_config([{master, MasterConfig} | Tail]) ->
-	io:format('got master config ~p ~n', [MasterConfig]),
+	%%io:format('got master config ~p ~n', [MasterConfig]),
 	lists:foreach(fun(X) -> {Key, Val} = X, ets:insert(concurix_config_master, {Key, Val}) end, MasterConfig),
 	setup_config(Tail);
 setup_config([{run, RunConfig} | Tail]) ->

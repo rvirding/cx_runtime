@@ -16,10 +16,9 @@ handle_full_trace(File) ->
 	receive
 		Msg ->
 			io:format("got trace msg ~p ~n", [Msg]),
-			Res = file:write(File, list_to_binary(lists:flatten(io_lib:format("~p.~n", [Msg])))),
+			file:write(File, list_to_binary(lists:flatten(io_lib:format("~p.~n", [Msg])))),
 			file:datasync(File),
-			handle_full_trace(File);
-		_X -> ok
+			handle_full_trace(File)
 	end.
 	
 stop_trace_client() ->
@@ -27,27 +26,59 @@ stop_trace_client() ->
 	dbg:stop_clear().
 	
 start_trace_client() ->
-	concurix_trace_socket:start(),
+	case concurix_trace_socket:start() of
+		{error, {already_started, concurix_runtime}} ->
+			get_run_and_trace();
+		ok ->
+			get_run_and_trace();
+		{error, Error} ->
+			{error, Error}
+	end.
+
+%%
+%% do the real work of starting a run.
+get_run_and_trace() ->
+	dbg:stop_clear(), %% clear out anything that might be lurking around (e.g. from a previous run)
 	dbg:start(),
-	Stats = ets:new(linkstats, [public, named_table]),
-	Procs = ets:new(procinfo, [public, named_table]),
-	Prof  = ets:new(sysprof, [public, named_table]),
-	
+	cleanup_timers(),
+
+	Stats = setup_ets_table(cx_linkstats),
+	Procs = setup_ets_table(cx_procinfo),
+	Prof  = setup_ets_table(cx_sysprof),
+	Timers = setup_ets_table(cx_timers),
+
 	RunInfo = concurix_run:get_run_info(),	
 	Sp_pid = spawn(concurix_trace_client, handle_system_profile, [Prof]),
 	State = #tcstate{proctable = Procs, linktable = Stats, sptable = Prof, runinfo = RunInfo, sp_pid = Sp_pid},
-	
+
 	%% now turn on the tracing
-	Pid = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
+	_Pid = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
 	dbg:p(all, [s,p]),
 	erlang:system_profile(Sp_pid, [concurix]),
-	
-	%% every two seconds send a web socket update.  every two minutes save to s3.
-	
-	timer:apply_interval(2000, concurix_trace_client, send_summary, [State]),
-	timer:apply_interval(120000, concurix_trace_client, send_snapshot, [State]),
-	ok.
 
+	%% every two seconds send a web socket update.  every two minutes save to s3.
+
+	{ok, T1} = timer:apply_interval(2000, concurix_trace_client, send_summary, [State]),
+	{ok, T2} = timer:apply_interval(120000, concurix_trace_client, send_snapshot, [State]),
+	ets:insert(cx_timers, {realtime_timer, T1}),
+	ets:insert(cx_timers, {s3_timer, T2}),
+	ok.
+	
+setup_ets_table(T) ->
+	case ets:info(T) of
+		undefined -> ets:new(T, [public, named_table]);
+		_X -> ets:delete_all_objects(T), T
+	end.
+
+cleanup_timers() ->
+	case ets:info(cx_timers) of
+		undefined -> 
+			ok;
+		X -> 
+			List = ets:tab2list(cx_timers),
+			[ timer:cancel(T) || {_X, T} <- List]
+	end.
+	
 handle_system_profile(Proftable) ->
     receive
       { profile, concurix, Id,  Summary, TimestampStart, TimestampStop } ->
@@ -59,7 +90,7 @@ handle_system_profile(Proftable) ->
         handle_system_profile(Proftable)
     end.
 	
-handle_trace_message({trace, Sender, send, Data, Recipient}, State) ->
+handle_trace_message({trace, Sender, send, _Data, Recipient}, State) ->
 	update_proc_table([Sender, Recipient], State, []),
 	case ets:lookup(State#tcstate.linktable, {Sender, Recipient}) of
 		[] ->
@@ -81,13 +112,13 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 		{proc_lib, init_p, _ProcInfo} ->
 			{Mod, Fun, Arity} = local_translate_initial_call(Pid),
 			ok;
-		{erlang, apply, [TempFun, Args]} ->
+		{erlang, apply, [TempFun, _Args]} ->
 			{Mod, Fun, Arity} = decode_anon_fun(TempFun);
 		{Mod, Fun, Args} ->
 			Arity = length(Args),
 			ok;
 		X ->
-			io:format("got unknown spawn of ~p ~n", [X]),
+			%%io:format("got unknown spawn of ~p ~n", [X]),
 			Mod = unknown,
 			Fun = X,
 			Arity = 0
@@ -99,7 +130,7 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 	update_proc_table([Creator], State, []),
 	ets:insert(State#tcstate.linktable, {{Creator, Pid}, 1}),
 	State;
-handle_trace_message(Msg, State) ->
+handle_trace_message(_Msg, State) ->
 	%%io:format("msg = ~p ~n", [Msg]),
 	State.
 	
@@ -126,8 +157,6 @@ get_current_json(State) ->
 	Run_id = proplists:get_value(run_id, State#tcstate.runinfo),
 	Send = [{version, 1}, {run_id, list_to_binary(Run_id)}, {nodes, TempProcs}, {links, TempLinks}, {schedulers, Schedulers}],
 	
-
-	Data = lists:flatten(io_lib:format("~p", [Send])),
 	lists:flatten(mochijson2:encode([{data, Send}])).
 
 send_summary(State)->
@@ -157,14 +186,14 @@ term_to_b(Val) when is_list(Val) ->
 		true ->
 			list_to_binary(Val);
 		false ->
-			List = [ term_to_b(X) || X <- Val]
+			[ term_to_b(X) || X <- Val]
 	end;	
 term_to_b(Term) ->
 	list_to_binary(lists:flatten(io_lib:format("~p", [Term]))).
 		
 %
 %
-update_proc_table([], State, Acc) ->
+update_proc_table([], _State, Acc) ->
 	Acc;
 update_proc_table([Pid | Tail], State, Acc) ->
 	case ets:lookup(State#tcstate.proctable, Pid) of
@@ -216,8 +245,8 @@ decode_anon_fun(Fun) ->
 	case string:tokens(Str, "<") of
 		["#Fun", Name] ->
 			[Mod | _] = string:tokens(Name, ".");
-		X ->
-			io:format("yikes, could not decode ~p of ~p ~n", [Fun, Str]),
+		_X ->
+			%io:format("yikes, could not decode ~p of ~p ~n", [Fun, Str]),
 			Mod = "anon_function"
 	end,
 	{Mod, Str, 0}.
@@ -260,7 +289,8 @@ update_process_info([Pid | T], Acc) ->
 					%% current function
 					case local_process_info(Pid, current_function) of
 						{current_function, {Mod, Fun, Arity}} -> ok;
-						X -> io:format("got unknown current function results of ~p ~n", [X]),
+						_X -> 
+							%%("got unknown current function results of ~p ~n", [X]),
 							{Mod, Fun, Arity} = {erlang, apply, 0}
 					end;
 				{Mod, Fun, Arity} ->
@@ -275,7 +305,7 @@ update_process_info([Pid | T], Acc) ->
 	NewAcc = Acc ++ [{Pid, {Mod, Fun, Arity}, Service}],
 	update_process_info(T, NewAcc).
 		
-validate_tables(Procs, Links, State) ->
+validate_tables(Procs, Links, _State) ->
 	Val = lists:flatten([[A, B] || {{A, B}, _} <- Links]),
 	Tempprocs = lists:usort([ A || {A, _, _} <-Procs ]),
 	Templinks = lists:usort(Val),
