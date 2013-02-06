@@ -26,7 +26,8 @@
                   stdlib,
 				  crypto,
 				  ranch,
-				  cowboy
+				  cowboy,
+				  gproc
                  ]},
   {env, []},
   {mod, {concurix_runtime_app, []}}

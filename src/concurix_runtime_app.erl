@@ -19,8 +19,8 @@ start(_StartType, _StartArgs) ->
         [{port, 6788}],
         [{env, [{dispatch, Dispatch}]}]
     ),
-    concurix_runtime_sup:start_link(),
-	Res.
+    {ok, Pid} = concurix_runtime_sup:start_link(),
+	{ok, Pid, Res}.
 
 stop(_State) ->
     ok.
