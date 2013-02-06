@@ -23,4 +23,5 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, []} }.
+	Children = [{concurix_trace_client, {concurix_trace_client, start, []}, permanent, 2000, worker, [concurix_trace_client]}],
+    {ok, { {one_for_one, 5, 10}, Children} }.

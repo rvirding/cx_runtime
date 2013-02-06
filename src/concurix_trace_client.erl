@@ -1,9 +1,13 @@
 -module(concurix_trace_client).
 
--export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_trace_client/0, handle_system_profile/1, start_full_trace/0, handle_full_trace/1]).
+-export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_trace_client/0, handle_system_profile/1, start_full_trace/0, handle_full_trace/1, start/0]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(tcstate, {proctable, linktable, sptable, runinfo, sp_pid}).
+-record(tcstate, {proctable, linktable, sptable, timertable, runinfo, sp_pid}).
 
+%%%
+%%% todo temporary backdoor access for full tracing
+%%%
 start_full_trace() ->
 	concurix_trace_socket:start(),
 	{ok, F} = file:open("full.trace", [write]),
@@ -24,20 +28,46 @@ handle_full_trace(File) ->
 stop_trace_client() ->
 	%% TODO when this is a gen server clean up the ets tables too 
 	dbg:stop_clear().
+
+%%
+%% gen_server support
+%%
+
+start() ->
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+init([]) ->
+	State = start_trace_client(),
+	{ok, State}.
 	
-start_trace_client() ->
-	case concurix_trace_socket:start() of
-		{error, {already_started, concurix_runtime}} ->
-			get_run_and_trace();
-		ok ->
-			get_run_and_trace();
-		{error, Error} ->
-			{error, Error}
-	end.
+handle_call(_Call, _From, State) ->
+	{reply, ok, State}.
+handle_cast(_Msg, State) ->
+	{noreply, State}.
+	
+handle_info(_Info, State) ->
+	{noreply, State}.
+
+terminate(_Reason, _State) ->
+	dbg:stop_clear(),
+	cleanup_timers(),
+	%% TODO--we shoudl pull these from the state object vs global names
+	ets:delete(cx_linkstats),
+	ets:delete(cx_procinfo),
+	ets:delete(cx_sysprof),
+	ets:delete(cx_timers),
+	ok.
+	
+code_change(_oldVsn, State, _Extra) ->
+	{ok, State}.
+	
+	
+%% internal APIs	
 
 %%
 %% do the real work of starting a run.
-get_run_and_trace() ->
+start_trace_client() ->
+	io:format("staring tracing"),
 	dbg:stop_clear(), %% clear out anything that might be lurking around (e.g. from a previous run)
 	dbg:start(),
 	cleanup_timers(),
@@ -48,11 +78,12 @@ get_run_and_trace() ->
 	Timers = setup_ets_table(cx_timers),
 
 	RunInfo = concurix_run:get_run_info(),	
-	Sp_pid = spawn(concurix_trace_client, handle_system_profile, [Prof]),
-	State = #tcstate{proctable = Procs, linktable = Stats, sptable = Prof, runinfo = RunInfo, sp_pid = Sp_pid},
+	Sp_pid = spawn_link(concurix_trace_client, handle_system_profile, [Prof]),
+	State = #tcstate{proctable = Procs, linktable = Stats, sptable = Prof, timertable = Timers, runinfo = RunInfo, sp_pid = Sp_pid},
 
 	%% now turn on the tracing
-	_Pid = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
+	{ok, Pid} = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
+	erlang:link(Pid),
 	dbg:p(all, [s,p]),
 	erlang:system_profile(Sp_pid, [concurix]),
 
@@ -62,7 +93,8 @@ get_run_and_trace() ->
 	{ok, T2} = timer:apply_interval(120000, concurix_trace_client, send_snapshot, [State]),
 	ets:insert(cx_timers, {realtime_timer, T1}),
 	ets:insert(cx_timers, {s3_timer, T2}),
-	ok.
+	
+	State.
 	
 setup_ets_table(T) ->
 	case ets:info(T) of
@@ -74,9 +106,9 @@ cleanup_timers() ->
 	case ets:info(cx_timers) of
 		undefined -> 
 			ok;
-		X -> 
+		_X -> 
 			List = ets:tab2list(cx_timers),
-			[ timer:cancel(T) || {_X, T} <- List]
+			[ timer:cancel(T) || {_Y, T} <- List]
 	end.
 	
 handle_system_profile(Proftable) ->

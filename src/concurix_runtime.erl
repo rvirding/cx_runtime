@@ -18,7 +18,7 @@ start(Filename, Options) ->
 	start(Filename),
 	case lists:member(msg_trace, Options) of
 		true ->
-			concurix_trace_client:start_trace_client();
+			concurix_trace_socket:start();
 		false ->
 			ok
 	end.
