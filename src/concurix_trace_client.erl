@@ -67,7 +67,7 @@ code_change(_oldVsn, State, _Extra) ->
 %%
 %% do the real work of starting a run.
 start_trace_client() ->
-	io:format("staring tracing"),
+	io:format("starting tracing~n"),
 	dbg:stop_clear(), %% clear out anything that might be lurking around (e.g. from a previous run)
 	dbg:start(),
 	cleanup_timers(),
