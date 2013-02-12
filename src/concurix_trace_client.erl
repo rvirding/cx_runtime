@@ -16,7 +16,7 @@ start_full_trace() ->
 	Tracer = spawn(concurix_trace_client, handle_full_trace, [F]),
 	%%erlang:trace_pattern({'_','_','_'}, true, [call_time, call_count]),	
 	erlang:trace(all, true, [send, 'receive', procs, garbage_collection, timestamp, {tracer, Tracer}]),
-	erlang:trace(self(), false, [send, 'receive', procs, garbage_collection, timestamp]),
+	erlang:trace(Tracer, false, [send, 'receive', procs, garbage_collection, timestamp]),
 	%%setup_existing(Existing, Tracer),
 	{F, Tracer}.
 
@@ -31,10 +31,11 @@ handle_full_trace(File) ->
 	receive
 		stop ->
 			Res = erlang:trace(all, false, [send, 'receive', procs, running, garbage_collection, timestamp]),
-			io:format("Res = ~p ~n", [Res]),
+			io:format("Stop = ~p ~n", [Res]),
 			file:write(File, <<"{\"end\" : \"true\"}]}">>),
 			file:datasync(File),
-			file:close(File);			
+			file:close(File),
+			io:format("tracing finished, ok to exit ~n");			
 		Msg ->
 			Save = handle_full_message(Msg),
 			Json = mochijson2:encode([Save]),
