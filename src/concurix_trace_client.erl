@@ -12,11 +12,19 @@ start_full_trace() ->
 	concurix_trace_socket:start(),
 	{ok, F} = file:open("full.json", [write]),
 	file:write(F, <<"{ \"events\" : [\n">>),
+	Existing = processes(),
 	Tracer = spawn(concurix_trace_client, handle_full_trace, [F]),
 	%%erlang:trace_pattern({'_','_','_'}, true, [call_time, call_count]),	
-	erlang:trace(new, true, [send, 'receive', procs, garbage_collection, timestamp, {tracer, Tracer}]),
+	erlang:trace(all, true, [send, 'receive', procs, garbage_collection, timestamp, {tracer, Tracer}]),
+	erlang:trace(self(), false, [send, 'receive', procs, garbage_collection, timestamp]),
+	%%setup_existing(Existing, Tracer),
 	{F, Tracer}.
 
+setup_existing([], _Tracer) ->
+	ok;
+setup_existing([H|T], Tracer) ->
+	erlang:trace(H, true, [send, 'receive', procs, garbage_collection, timestamp, {tracer, Tracer}]),
+	setup_existing(T, Tracer).	
 	
 handle_full_trace(File) ->
 	Tracer = self(),
