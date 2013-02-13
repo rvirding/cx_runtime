@@ -234,7 +234,7 @@ handle_trace_message({trace, _Pid, getting_linked, _Pid2}, State) ->
 handle_trace_message({trace, _Pid, link, _Pid2}, State) ->
 	State;
 handle_trace_message(Msg, State) ->
-	io:format("msg = ~p ~n", [Msg]),
+	%%io:format("msg = ~p ~n", [Msg]),
 	State.
 	
 get_current_json(State) ->
