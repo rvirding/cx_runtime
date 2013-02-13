@@ -137,6 +137,12 @@ start_trace_client() ->
 	erlang:link(Pid),
 	dbg:p(all, [s,p]),
 	erlang:system_profile(Sp_pid, [concurix]),
+	
+	%% this is a workaround for dbg:p not knowing the hidden scheduler_id flag. :-)
+	%% basically we grab the tracer setup in dbg and then add a few more flags
+	T = erlang:trace_info(self(), tracer),
+	%%io:format("trace_info_flag ~p ~n",[ erlang:trace_info(self(), flags)]),
+	erlang:trace(all, true, [procs, send, running, scheduler_id, T]),
 
 	%% every two seconds send a web socket update.  every two minutes save to s3.
 
@@ -207,11 +213,25 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 			Arity = 0
 	end,
 	Service = mod_to_service(Mod),
-	Key = {Pid, {Mod, Fun, Arity}, Service},
+	Key = {Pid, {Mod, Fun, Arity}, Service, 0},
 	ets:insert(State#tcstate.proctable, Key),
 	%% also include a link from the creator process to the created.
 	update_proc_table([Creator], State, []),
 	ets:insert(State#tcstate.linktable, {{Creator, Pid}, 1}),
+	State;
+handle_trace_message({trace, Pid, in, Scheduler, _MFA}, State) ->
+	update_proc_scheduler(Pid, Scheduler, State),
+	State;
+handle_trace_message({trace, Pid, out, Scheduler, _MFA}, State) ->
+	update_proc_scheduler(Pid, Scheduler, State),
+	State;
+handle_trace_message({trace, _Pid, getting_unlinked, _Pid2}, State)->
+	State;
+handle_trace_message({trace, _Pid, unlink, _Pid2 }, State) ->
+	State;
+handle_trace_message({trace, _Pid, getting_linked, _Pid2}, State) ->
+	State;
+handle_trace_message({trace, _Pid, link, _Pid2}, State) ->
 	State;
 handle_trace_message(Msg, State) ->
 	io:format("msg = ~p ~n", [Msg]),
@@ -233,7 +253,7 @@ get_current_json(State) ->
 	ets:safe_fixtable(State#tcstate.sptable, false),
 
 
-	TempProcs = [ [{name, pid_to_b(Pid)}, {module, term_to_b(M)}, {function, term_to_b(F)}, {arity, A}, term_to_b(local_process_info(Pid, reductions)), term_to_b({service, Service})] || {Pid, {M, F, A}, Service} <- Procs ],
+	TempProcs = [ [{name, pid_to_b(Pid)}, {module, term_to_b(M)}, {function, term_to_b(F)}, {arity, A}, local_process_info(Pid, reductions), local_process_info(Pid, total_heap_size), term_to_b({service, Service}), {scheduler, Scheduler}] || {Pid, {M, F, A}, Service, Scheduler} <- Procs ],
 	TempLinks = [ [{source, pid_to_b(A)}, {target, pid_to_b(B)}, {value, C}] || {{A, B}, C} <- Links],
 	Schedulers = [ [{scheduler, Id}, {process_create, Create}, {quanta_count, QCount}, {quanta_time, QTime}, {send, Send}, {gc, GC}, {true_call_count, True}, {tail_call_count, Tail}, {return_count, Return}, {process_free, Free}] || {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
 
@@ -283,11 +303,22 @@ update_proc_table([Pid | Tail], State, Acc) ->
 		[] ->
 			[{Pid, {Mod, Fun, Arity}, Service}] = update_process_info(Pid),
 			NewAcc = Acc ++ [{Pid, {Mod, Fun, Arity}, Service}],
-			ets:insert(State#tcstate.proctable, {Pid, {Mod, Fun, Arity}, Service});
+			ets:insert(State#tcstate.proctable, {Pid, {Mod, Fun, Arity}, Service, 0});
 		_X ->
 			NewAcc = Acc
 	end,
 	update_proc_table(Tail, State, NewAcc).
+
+update_proc_scheduler(Pid, Scheduler, State) ->
+	case ets:lookup(State#tcstate.proctable, Pid) of 
+		[] ->
+			%% we don't have it yet, wait until we get the create message
+			ok;
+		[{Pid, {Mod, Fun, Arity}, Service, _OldScheduler}] ->
+			ets:insert(State#tcstate.proctable, {Pid, {Mod, Fun, Arity}, Service, Scheduler});
+		X ->
+			io:format("yikes, corrupt proc table ~p ~n", [X])
+	end.
 	
 local_process_info(Pid, reductions) when is_pid(Pid) ->
 	case process_info(Pid, reductions) of
@@ -314,6 +345,15 @@ local_process_info(Pid, Key) when is_atom(Pid) ->
 	local_process_info(whereis(Pid), Key);
 local_process_info(Pid, reductions) when is_port(Pid) ->
 	{reductions, 1};
+local_process_info(Pid, total_heap_size) when is_port(Pid) ->
+	{total_heap_size, 1};
+local_process_info(Pid, total_heap_size) ->
+	case process_info(Pid, total_heap_size) of
+		undefined ->
+			{total_heap_size, 1};
+		X ->
+			X
+	end;
 local_process_info(Pid, initial_call) when is_port(Pid) ->
 	Info = erlang:port_info(Pid),
 	{initial_call, {port, proplists:get_value(name, Info), 0}}.
