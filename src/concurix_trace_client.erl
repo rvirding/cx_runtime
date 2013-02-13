@@ -135,7 +135,7 @@ start_trace_client() ->
 	%% now turn on the tracing
 	{ok, Pid} = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
 	erlang:link(Pid),
-	dbg:p(all, [s,p, running, scheduler_id]),
+	dbg:p(all, [s,p]),
 	erlang:system_profile(Sp_pid, [concurix]),
 
 	%% every two seconds send a web socket update.  every two minutes save to s3.
