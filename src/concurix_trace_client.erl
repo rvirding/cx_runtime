@@ -15,7 +15,7 @@ start_full_trace() ->
 	Existing = processes(),
 	Tracer = spawn(concurix_trace_client, handle_full_trace, [F]),
 	%%erlang:trace_pattern({'_','_','_'}, true, [call_time, call_count]),	
-	erlang:trace(all, true, [send, 'receive', procs, garbage_collection, timestamp, {tracer, Tracer}]),
+	erlang:trace(all, true, [send, 'receive', procs, garbage_collection, running, scheduler_id, timestamp, {tracer, Tracer}]),
 	erlang:trace(Tracer, false, [send, 'receive', procs, garbage_collection, timestamp]),
 	%%setup_existing(Existing, Tracer),
 	{F, Tracer}.
@@ -69,6 +69,7 @@ handle_full_message({trace_ts, Pid, register, RegName, Timestamp}) ->
 handle_full_message({trace_ts, Pid, unregister, RegName, Timestamp}) ->
 	{process, [{pid, pid_to_b(Pid)}, {type, unregister}, {regname, RegName}, {time, time_to_b(Timestamp)}]};
 handle_full_message(Msg) ->	
+	io:format("unknown msg ~p ~n", [Msg]),
 	{unknown, [{msg, pid_to_b(Msg)}]}.
 	
 stop_full_trace({F, Tracer}) ->
@@ -134,7 +135,7 @@ start_trace_client() ->
 	%% now turn on the tracing
 	{ok, Pid} = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
 	erlang:link(Pid),
-	dbg:p(all, [s,p]),
+	dbg:p(all, [s,p, running, scheduler_id]),
 	erlang:system_profile(Sp_pid, [concurix]),
 
 	%% every two seconds send a web socket update.  every two minutes save to s3.
@@ -212,8 +213,8 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 	update_proc_table([Creator], State, []),
 	ets:insert(State#tcstate.linktable, {{Creator, Pid}, 1}),
 	State;
-handle_trace_message(_Msg, State) ->
-	%%io:format("msg = ~p ~n", [Msg]),
+handle_trace_message(Msg, State) ->
+	io:format("msg = ~p ~n", [Msg]),
 	State.
 	
 get_current_json(State) ->
