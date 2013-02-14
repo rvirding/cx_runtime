@@ -192,7 +192,7 @@ handle_trace_message({trace, Pid, exit, _Reason}, State) ->
 	ets:safe_fixtable(State#tcstate.proctable, true),
 	ets:safe_fixtable(State#tcstate.linktable, true),	
 	ets:select_delete(State#tcstate.linktable, [ { {{'_', Pid},'_'}, [], [true]}, { {{Pid, '_'}, '_'}, [], [true] } ]),
-	ets:select_delete(State#tcstate.proctable, [ { {Pid, '_', '_'}, [], [true]}]),
+	ets:select_delete(State#tcstate.proctable, [ { {Pid, '_', '_', '_'}, [], [true]}]),
 	ets:safe_fixtable(State#tcstate.linktable, false),		
 	ets:safe_fixtable(State#tcstate.proctable, false),	
 	State;
@@ -430,7 +430,7 @@ update_process_info([Pid | T], Acc) ->
 		
 validate_tables(Procs, Links, _State) ->
 	Val = lists:flatten([[A, B] || {{A, B}, _} <- Links]),
-	Tempprocs = lists:usort([ A || {A, _, _} <-Procs ]),
+	Tempprocs = lists:usort([ A || {A, _, _, _} <-Procs ]),
 	Templinks = lists:usort(Val),
 	Updateprocs = Templinks -- Tempprocs,	
 	
