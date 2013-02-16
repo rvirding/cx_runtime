@@ -10,6 +10,12 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
+    %%% TODO (Mike) this is unbelievably evil
+    case ets:info(concurix_config_master) of
+	undefined ->
+		concurix_runtime:start("concurix.config");
+	_X -> ok
+    end,
     %% {Host, list({Path, Handler, Opts})}
     Dispatch = cowboy_router:compile([{'_', [
         {"/", concurix_trace_socket_handler, []}

@@ -347,7 +347,7 @@ local_process_info(Pid, reductions) when is_port(Pid) ->
 	{reductions, 1};
 local_process_info(Pid, total_heap_size) when is_port(Pid) ->
 	{total_heap_size, 1};
-local_process_info(Pid, total_heap_size) ->
+local_process_info(Pid, total_heap_size) when is_pid(Pid) ->
 	case process_info(Pid, total_heap_size) of
 		undefined ->
 			{total_heap_size, 1};
@@ -356,12 +356,17 @@ local_process_info(Pid, total_heap_size) ->
 	end;
 local_process_info(Pid, initial_call) when is_port(Pid) ->
 	Info = erlang:port_info(Pid),
-	{initial_call, {port, proplists:get_value(name, Info), 0}}.
+	{initial_call, {port, proplists:get_value(name, Info), 0}};
+
+local_process_info({Pid, _X}, Key)     ->
+        local_process_info(Pid, Key).
 	
 local_translate_initial_call(Pid) when is_pid(Pid) ->
 	proc_lib:translate_initial_call(Pid);
 local_translate_initial_call(Pid) when is_atom(Pid) ->
-	proc_lib:translate_initial_call(whereis(Pid)).
+	proc_lib:translate_initial_call(whereis(Pid));
+local_translate_initial_call({Pid, _X}) ->
+        local_translate_initial_call(Pid).
 	
 decode_anon_fun(Fun) ->
 	Str = lists:flatten(io_lib:format("~p", [Fun])),

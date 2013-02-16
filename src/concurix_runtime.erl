@@ -8,11 +8,14 @@
 
 start() ->
 	start("concurix.config").
+
 start(Filename) ->
-	%%io:format("starting Concurix Runtime~n"),
-	Dirs = code:get_path(),
-	{ok, Config, _File} = file:path_consult(Dirs, Filename),
+        {ok, CWD }          = file:get_cwd(),
+        Dirs                = code:get_path(),
+
+        {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
 	start_config(Config).
+
 
 start(Filename, Options) ->
 	start(Filename),
