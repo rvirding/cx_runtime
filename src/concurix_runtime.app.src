@@ -4,7 +4,6 @@
   {vsn, "0.1"},
   {src_dirs, ["./"]},
   {modules,  [concurix_runtime,
-              concurix_trace_client,
               concurix_trace_socket_handler
              ]},
   {registered,            []},
