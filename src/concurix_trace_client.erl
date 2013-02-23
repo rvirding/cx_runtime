@@ -292,7 +292,7 @@ send_snapshot(State) ->
 	{Mega, Secs, Micro} = now(),
 	Key 		= lists:flatten(io_lib:format("json_realtime_trace_snapshot.~p.~p-~p-~p",[node(), Mega, Secs, Micro])),
 	
-	concurix_file:transmit_data_to_s3(Run_id, Key, list_to_binary(Json), Url, Fields).
+	transmit_data_to_s3(Run_id, Key, list_to_binary(Json), Url, Fields).
 	
 pid_to_b(Pid) ->
 	list_to_binary(lists:flatten(io_lib:format("~p", [Pid]))).
@@ -457,3 +457,26 @@ validate_tables(Procs, Links, _State) ->
 	
 	NewProcs = update_process_info(Updateprocs, []),
 	{Procs ++ NewProcs, Links}.	
+
+
+transmit_data_to_s3(Run_id, Key, Data, Url, Fields) ->
+	inets:start(),
+	ssl:start(),
+	
+	SendFields = update_fields(Run_id, Fields, Key),
+	
+	Request = erlcloud_s3:make_post_http_request(Url, SendFields, Data),
+	httpc:request(
+			post,
+			Request,
+			[{timeout, 60000}],
+			[{sync, true}]).
+
+update_fields(Run_id, Fields, File) ->
+	case proplists:is_defined(key, Fields) of
+		true ->
+			Temp = proplists:delete(key, Fields);
+		false -> 
+			Temp = Fields
+	end,
+	Temp ++ [{key, Run_id ++ "/" ++ File}].
