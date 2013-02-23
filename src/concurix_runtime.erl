@@ -28,7 +28,6 @@ start_text(Text) ->
 		
 start_config(Config) ->
 	setup_ets_tables([concurix_config_master, concurix_config_spawn, concurix_config_memo]),
-	erase(run_commands),
 	setup_config(Config).
 	
 %% we setup ets tables for configuration now to simplify the compile logic.  this
@@ -45,10 +44,7 @@ setup_ets_tables([H | T]) ->
 	setup_ets_tables(T).
 	
 setup_config([]) ->
-	case get(run_commands) of
-		undefined -> ok;
-		X -> concurix_run:process_runscript(X)
-	end;
+        ok;
 setup_config([{spawn, SpawnConfig} | Tail]) ->
 	lists:foreach(fun(X) -> {{M, F}, Expr} = X, ets:insert(concurix_config_spawn, {{M, F}, Expr}) end, SpawnConfig),
 	setup_config(Tail);
@@ -59,9 +55,6 @@ setup_config([{master, MasterConfig} | Tail]) ->
 	%%io:format('got master config ~p ~n', [MasterConfig]),
 	lists:foreach(fun(X) -> {Key, Val} = X, ets:insert(concurix_config_master, {Key, Val}) end, MasterConfig),
 	setup_config(Tail);
-setup_config([{run, RunConfig} | Tail]) ->
-	put(run_commands, RunConfig), %%we'll run the instrumentation work *after* we've had a chance to finish initializing
-	setup_config(Tail);	
 setup_config([Head | Tail]) ->
 	%% do something with head
 	io:format("unknown concurix configuration ~p ~n", [Head]),
