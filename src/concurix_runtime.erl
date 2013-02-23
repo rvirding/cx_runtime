@@ -9,6 +9,12 @@
 
 -record(tcstate, {proctable, linktable, sptable, timertable, runinfo, sp_pid}).
 
+%% Send an update to the visualizer every two seconds
+%% Send a  snapshot to S3           every two minutes
+
+-define(TIMER_INTERVAL_VIZ,        2 * 1000).
+-define(TIMER_INTERVAL_S3,    2 * 60 * 1000).
+
 start(Filename, Options) ->
   case lists:member(msg_trace, Options) of
     true  ->
@@ -61,11 +67,10 @@ terminate(_Reason, _State) ->
   dbg:stop_clear(),
   cleanup_timers(),
 
-  %% TODO--we should pull these from the state object vs global names
-  ets:delete(cx_linkstats),
-  ets:delete(cx_procinfo),
-  ets:delete(cx_sysprof),
-  ets:delete(cx_timers),
+  ets:delete(State#tcstate.proctable),
+  ets:delete(State#tcstate.linktable),
+  ets:delete(State#tcstate.sptable),
+  ets:delete(State#tcstate.timertable),
   ok.
  
 code_change(_oldVsn, State, _Extra) ->
@@ -115,11 +120,11 @@ start_trace_client(Config) ->
 
   %% Every two seconds send a web socket update.
   %% Every two minutes save to s3.
-  {ok, T1}  = timer:apply_interval(     2 * 1000, ?MODULE, send_summary,  [State]),
-  {ok, T2}  = timer:apply_interval(2 * 60 * 1000, ?MODULE, send_snapshot, [State]),
+  {ok, T1}  = timer:apply_interval(?TIMER_INTERVAL_VIZ, ?MODULE, send_summary,  [State]),
+  {ok, T2}  = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [State]),
 
-  ets:insert(cx_timers, {realtime_timer, T1}),
-  ets:insert(cx_timers, {s3_timer,       T2}),
+  ets:insert(Timers, {realtime_timer, T1}),
+  ets:insert(Timers, {s3_timer,       T2}),
  
   State.
  
