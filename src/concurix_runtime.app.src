@@ -4,7 +4,6 @@
   {vsn, "0.1"},
   {src_dirs, ["./"]},
   {modules,  [concurix_bench,
-              concurix_file,
               concurix_runtime,
               concurix_trace,
               concurix_trace_client,
