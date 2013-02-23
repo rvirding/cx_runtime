@@ -1,83 +1,11 @@
 -module(concurix_trace_client).
 
--export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_full_trace/1, handle_system_profile/1, start_full_trace/0, handle_full_trace/1, start/0, get_run_info/0, eval_string/1]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([start/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+
+-export([start_trace_client/0, send_summary/1, send_snapshot/1, handle_system_profile/1, get_run_info/0, eval_string/1]).
 
 -record(tcstate, {proctable, linktable, sptable, timertable, runinfo, sp_pid}).
 
-%%%
-%%% todo temporary backdoor access for full tracing
-%%%
-start_full_trace() ->
-	concurix_trace_socket:start(),
-	{ok, F} = file:open("full.json", [write]),
-	file:write(F, <<"{ \"events\" : [\n">>),
-	Tracer = spawn(concurix_trace_client, handle_full_trace, [F]),
-	%%erlang:trace_pattern({'_','_','_'}, true, [call_time, call_count]),	
-	erlang:trace(all, true, [send, 'receive', procs, garbage_collection, running, scheduler_id, timestamp, {tracer, Tracer}]),
-	erlang:trace(Tracer, false, [send, 'receive', procs, garbage_collection, timestamp]),
-	%%setup_existing(Existing, Tracer),
-	{F, Tracer}.
-
-%% setup_existing([], _Tracer) ->
-%% 	ok;
-%% setup_existing([H|T], Tracer) ->
-%% 	erlang:trace(H, true, [send, 'receive', procs, garbage_collection, timestamp, {tracer, Tracer}]),
-%% 	setup_existing(T, Tracer).	
-	
-handle_full_trace(File) ->
-	receive
-		stop ->
-			Res = erlang:trace(all, false, [send, 'receive', procs, running, garbage_collection, timestamp]),
-			io:format("Stop = ~p ~n", [Res]),
-			file:write(File, <<"{\"end\" : \"true\"}]}">>),
-			file:datasync(File),
-			file:close(File),
-			io:format("tracing finished, ok to exit ~n");			
-		Msg ->
-			Save = handle_full_message(Msg),
-			Json = mochijson2:encode([Save]),
-			file:write(File, [Json, <<",\n">>]),
-			file:datasync(File),
-			handle_full_trace(File)
-	end.
-
-handle_full_message({trace_ts, Pid, send, Msg, To, Timestamp}) ->
-	{send, [{from, pid_to_b(Pid)}, {to, pid_to_b(To)}, {msg, pid_to_b(Msg)}, {time, time_to_b(Timestamp)}]};
-handle_full_message({trace_ts, Pid, 'receive', Msg, Timestamp}) ->
-	{'receive', [{to, pid_to_b(Pid)}, {msg, pid_to_b(Msg)}, {time, time_to_b(Timestamp)}]};
-handle_full_message({trace_ts, Pid, gc_start, Info, Timestamp}) ->
-	{gc, [{pid, pid_to_b(Pid)}, {type, start}, {info, Info}, {time, time_to_b(Timestamp)}]};
-handle_full_message({trace_ts, Pid, gc_end, Info, Timestamp}) ->
-	{gc, [{pid, pid_to_b(Pid)}, {type, 'end'}, {info, Info}, {time, time_to_b(Timestamp)}]};
-handle_full_message({trace_ts, Pid, spawn, Pid2, {_Mod, _Fun, _Args}, Timestamp}) ->
-	{process, [{pid, pid_to_b(Pid)}, {type, spawn}, {newpid, Pid2}, {time, time_to_b(Timestamp)}]};
-handle_full_message({trace_ts, Pid, exit, _Reason, Timestamp}) ->
-	{process, [{pid, pid_to_b(Pid)}, {type, exit}, {time, time_to_b(Timestamp)}]};
-handle_full_message({trace_ts, Pid, link, Pid2, Timestamp}) ->
-	{process, [{pid, pid_to_b(Pid)}, {type, link}, {linked_pid, pid_to_b(Pid2)}, {time, time_to_b(Timestamp)}]};	
-handle_full_message({trace_ts, Pid, unlink, Pid2, Timestamp}) ->
-	{process, [{pid, pid_to_b(Pid)}, {type, unlink}, {linked_pid, pid_to_b(Pid2)}, {time, time_to_b(Timestamp)}]};	
-handle_full_message({trace_ts, Pid, getting_linked, Pid2, Timestamp}) ->
-	{process, [{pid, pid_to_b(Pid)}, {type, getting_linked},{linked_pid, pid_to_b(Pid2)}, {time, time_to_b(Timestamp)}]};	
-handle_full_message({trace_ts, Pid, getting_unlinked, Pid2, Timestamp}) ->
-	{process, [{pid, pid_to_b(Pid)}, {type, getting_unlinked}, {linked_pid, pid_to_b(Pid2)}, {time, time_to_b(Timestamp)}]};	
-handle_full_message({trace_ts, Pid, register, RegName, Timestamp}) ->
-	{process, [{pid, pid_to_b(Pid)}, {type, register}, {regname, RegName}, {time, time_to_b(Timestamp)}]};
-handle_full_message({trace_ts, Pid, unregister, RegName, Timestamp}) ->
-	{process, [{pid, pid_to_b(Pid)}, {type, unregister}, {regname, RegName}, {time, time_to_b(Timestamp)}]};
-handle_full_message(Msg) ->	
-	io:format("unknown msg ~p ~n", [Msg]),
-	{unknown, [{msg, pid_to_b(Msg)}]}.
-	
-stop_full_trace({_F, Tracer}) ->
-	%% TODO when this is a gen server clean up the ets tables too 
-	Tracer ! stop.
-
-
-
-time_to_b({Mega, Sec, Micro}) ->
-	list_to_binary(lists:flatten(io_lib:format("~p.~p.~p", [Mega, Sec, Micro]))).
 %%
 %% gen_server support
 %%
@@ -91,6 +19,7 @@ init([]) ->
 	
 handle_call(_Call, _From, State) ->
 	{reply, ok, State}.
+
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 	
