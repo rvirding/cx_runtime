@@ -12,7 +12,6 @@ start_full_trace() ->
 	concurix_trace_socket:start(),
 	{ok, F} = file:open("full.json", [write]),
 	file:write(F, <<"{ \"events\" : [\n">>),
-	Existing = processes(),
 	Tracer = spawn(concurix_trace_client, handle_full_trace, [F]),
 	%%erlang:trace_pattern({'_','_','_'}, true, [call_time, call_count]),	
 	erlang:trace(all, true, [send, 'receive', procs, garbage_collection, running, scheduler_id, timestamp, {tracer, Tracer}]),
@@ -20,14 +19,13 @@ start_full_trace() ->
 	%%setup_existing(Existing, Tracer),
 	{F, Tracer}.
 
-setup_existing([], _Tracer) ->
-	ok;
-setup_existing([H|T], Tracer) ->
-	erlang:trace(H, true, [send, 'receive', procs, garbage_collection, timestamp, {tracer, Tracer}]),
-	setup_existing(T, Tracer).	
+%% setup_existing([], _Tracer) ->
+%% 	ok;
+%% setup_existing([H|T], Tracer) ->
+%% 	erlang:trace(H, true, [send, 'receive', procs, garbage_collection, timestamp, {tracer, Tracer}]),
+%% 	setup_existing(T, Tracer).	
 	
 handle_full_trace(File) ->
-	Tracer = self(),
 	receive
 		stop ->
 			Res = erlang:trace(all, false, [send, 'receive', procs, running, garbage_collection, timestamp]),
@@ -52,9 +50,9 @@ handle_full_message({trace_ts, Pid, gc_start, Info, Timestamp}) ->
 	{gc, [{pid, pid_to_b(Pid)}, {type, start}, {info, Info}, {time, time_to_b(Timestamp)}]};
 handle_full_message({trace_ts, Pid, gc_end, Info, Timestamp}) ->
 	{gc, [{pid, pid_to_b(Pid)}, {type, 'end'}, {info, Info}, {time, time_to_b(Timestamp)}]};
-handle_full_message({trace_ts, Pid, spawn, Pid2, {Mod, Fun, Args}, Timestamp}) ->
+handle_full_message({trace_ts, Pid, spawn, Pid2, {_Mod, _Fun, _Args}, Timestamp}) ->
 	{process, [{pid, pid_to_b(Pid)}, {type, spawn}, {newpid, Pid2}, {time, time_to_b(Timestamp)}]};
-handle_full_message({trace_ts, Pid, exit, Reason, Timestamp}) ->
+handle_full_message({trace_ts, Pid, exit, _Reason, Timestamp}) ->
 	{process, [{pid, pid_to_b(Pid)}, {type, exit}, {time, time_to_b(Timestamp)}]};
 handle_full_message({trace_ts, Pid, link, Pid2, Timestamp}) ->
 	{process, [{pid, pid_to_b(Pid)}, {type, link}, {linked_pid, pid_to_b(Pid2)}, {time, time_to_b(Timestamp)}]};	
@@ -72,7 +70,7 @@ handle_full_message(Msg) ->
 	io:format("unknown msg ~p ~n", [Msg]),
 	{unknown, [{msg, pid_to_b(Msg)}]}.
 	
-stop_full_trace({F, Tracer}) ->
+stop_full_trace({_F, Tracer}) ->
 	%% TODO when this is a gen server clean up the ets tables too 
 	Tracer ! stop.
 
@@ -233,7 +231,7 @@ handle_trace_message({trace, _Pid, getting_linked, _Pid2}, State) ->
 	State;
 handle_trace_message({trace, _Pid, link, _Pid2}, State) ->
 	State;
-handle_trace_message(Msg, State) ->
+handle_trace_message(_Msg, State) ->
 	%%io:format("msg = ~p ~n", [Msg]),
 	State.
 	
