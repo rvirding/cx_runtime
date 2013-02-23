@@ -58,26 +58,26 @@ generate_call_local_memo(Line, Fun, Args) ->
 		[{'fun', Line, {clauses, [{clause, Line, [], [], [{call, Line, Fun, Args}]}]}}]}.
 
 %% Generate a memoized call that preserves any side effects of the Args expressions.
-generate_call_local_memo_with_effects(Line, Fun, Args) ->
-        ArgList = generate_args(length(Args), Line),
-        {{'fun', Line, {clauses,
-                        [{clause, Line, ArgList, [],
-                          [{call, Line,
-                            {remote, Line, {atom, Line, concurix_memo}, {atom, Line, local_memoize}},
-                            [{'fun', Line, {clauses,
-                                            [{clause, Line, [], [],
-                                              [{call, Line, Fun, ArgList}]
-                                             }]
-                                           }}]
-                           }]
-                         }]
-                       }},
-         Args}.
-
-generate_args(NumArgs, Line) ->
-    lists:map(fun(I) ->
-                      {var, Line, list_to_atom("Arg" ++ integer_to_list(I))}
-              end, lists:seq(1, NumArgs)).
+%% generate_call_local_memo_with_effects(Line, Fun, Args) ->
+%%         ArgList = generate_args(length(Args), Line),
+%%         {{'fun', Line, {clauses,
+%%                         [{clause, Line, ArgList, [],
+%%                           [{call, Line,
+%%                             {remote, Line, {atom, Line, concurix_memo}, {atom, Line, local_memoize}},
+%%                             [{'fun', Line, {clauses,
+%%                                             [{clause, Line, [], [],
+%%                                               [{call, Line, Fun, ArgList}]
+%%                                              }]
+%%                                            }}]
+%%                            }]
+%%                          }]
+%%                        }},
+%%          Args}.
+%% 
+%% generate_args(NumArgs, Line) ->
+%%     lists:map(fun(I) ->
+%%                       {var, Line, list_to_atom("Arg" ++ integer_to_list(I))}
+%%               end, lists:seq(1, NumArgs)).
 	
 get_arg_n(CallArgs, 1) ->
 	{cons, _Line, Arg, _Remainder} = CallArgs,
