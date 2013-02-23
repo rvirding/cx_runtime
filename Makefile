@@ -37,9 +37,6 @@ install-cowboy:
 install-erlcloud:
 	cd deps/erlcloud && make install
 
-install-purity:
-	cd deps/purity   && make install
-
 install-gproc:
 	install -d $(GPROC_INSTALL_DIR)
 	install -d $(GPROC_INSTALL_DIR)/doc
@@ -63,4 +60,4 @@ install-cx-runtime:
 	install scripts/concurix_runtime.boot             $(ROOT)/releases/R15B02
 	install scripts/concurix_runtime.script           $(ROOT)/releases/R15B02
 
-install: install-cowboy install-erlcloud install-purity install-gproc install-mochiweb install-cx-runtime
+install: install-cowboy install-erlcloud install-gproc install-mochiweb install-cx-runtime
