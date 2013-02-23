@@ -1,73 +1,61 @@
 -module(concurix_runtime).
--export([start/0, start/1, start/2, start_config/1, start_text/1, setup_ets_tables/1, setup_config/1]).
-%%-on_load(start/0).
-
-start() ->
-	start("concurix.config").
-
-start(Filename) ->
-        {ok, CWD }          = file:get_cwd(),
-        Dirs                = code:get_path(),
-
-        {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
-	start_config(Config).
-
+-export([start/2]).
 
 start(Filename, Options) ->
-	start(Filename),
-	case lists:member(msg_trace, Options) of
-		true ->
-	          application:start(crypto),
-                  application:start(ranch),
-	          application:start(cowboy),
-	          application:start(gproc),
+  {ok, CWD }          = file:get_cwd(),
+  Dirs                = code:get_path(),
 
-                  %% {Host, list({Path, Handler, Opts})}
-                  Dispatch = cowboy_router:compile([{'_', [{"/", concurix_trace_socket_handler, []} ]}]),
+  {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
 
-                  %% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
-                  cowboy:start_http(http, 100, [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
+  setup_ets_tables([concurix_config_master]),
+  setup_config(Config),
 
-                  concurix_trace_client:start();
-%%	          application:start(concurix_runtime);
-		false ->
-			ok
-	end.
-	
-start_text(Text) ->
-	Config = concurix_trace_client:eval_string(Text),
-	start_config(Config).
-		
-start_config(Config) ->
-	setup_ets_tables([concurix_config_master, concurix_config_spawn, concurix_config_memo]),
-	setup_config(Config).
-	
+  case lists:member(msg_trace, Options) of
+    true  ->
+      application:start(crypto),
+      application:start(ranch),
+      application:start(cowboy),
+      application:start(gproc),
+
+      %% {Host, list({Path, Handler, Opts})}
+      Dispatch = cowboy_router:compile([{'_', [{"/", concurix_trace_socket_handler, []} ]}]),
+
+      %% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
+      cowboy:start_http(http, 100, [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
+
+      concurix_trace_client:start();
+
+    false ->
+      ok
+ end.
+ 
 %% we setup ets tables for configuration now to simplify the compile logic.  this
 %% way every table is available even if the particular customer instance does not
 %% have any options
 
 setup_ets_tables([]) ->
-	ok;
+  ok;
+
 setup_ets_tables([H | T]) ->
-	case ets:info(H) of
-		undefined -> ets:new(H, [public, named_table, {read_concurrency, true}, {heir, whereis(init), concurix}]);
-		_X -> ets:delete_all_objects(H)
-	end,
-	setup_ets_tables(T).
-	
+  case ets:info(H) of
+    undefined ->
+      ets:new(H, [public, named_table, {read_concurrency, true}, {heir, whereis(init), concurix}]);
+
+    _ -> 
+      ets:delete_all_objects(H)
+ end,
+
+ setup_ets_tables(T).
+ 
 setup_config([]) ->
-        ok;
-setup_config([{spawn, SpawnConfig} | Tail]) ->
-	lists:foreach(fun(X) -> {{M, F}, Expr} = X, ets:insert(concurix_config_spawn, {{M, F}, Expr}) end, SpawnConfig),
-	setup_config(Tail);
-setup_config([{memoization, MemoConfig} | Tail]) ->
-	lists:foreach(fun(X) -> {{M, F}, Expr} = X, ets:insert(concurix_config_memo, {{M, F}, Expr}) end, MemoConfig),
-	setup_config(Tail);
+  ok;
+
 setup_config([{master, MasterConfig} | Tail]) ->
-	%%io:format('got master config ~p ~n', [MasterConfig]),
-	lists:foreach(fun(X) -> {Key, Val} = X, ets:insert(concurix_config_master, {Key, Val}) end, MasterConfig),
-	setup_config(Tail);
+  %%io:format('got master config ~p ~n', [MasterConfig]),
+  lists:foreach(fun(X) -> {Key, Val} = X, ets:insert(concurix_config_master, {Key, Val}) end, MasterConfig),
+  setup_config(Tail);
+
 setup_config([Head | Tail]) ->
-	%% do something with head
-	io:format("unknown concurix configuration ~p ~n", [Head]),
-	setup_config(Tail).
+  %% do something with head
+  io:format("unknown concurix configuration ~p ~n", [Head]),
+  setup_config(Tail).
