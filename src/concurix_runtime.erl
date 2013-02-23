@@ -21,7 +21,15 @@ start(Filename, Options) ->
                   application:start(ranch),
 	          application:start(cowboy),
 	          application:start(gproc),
-	          application:start(concurix_runtime);
+
+                  %% {Host, list({Path, Handler, Opts})}
+                  Dispatch = cowboy_router:compile([{'_', [{"/", concurix_trace_socket_handler, []} ]}]),
+
+                  %% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
+                  cowboy:start_http(http, 100, [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
+
+                  concurix_trace_client:start();
+%%	          application:start(concurix_runtime);
 		false ->
 			ok
 	end.

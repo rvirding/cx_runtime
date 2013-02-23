@@ -6,13 +6,10 @@
   {modules,  [concurix_runtime,
               concurix_trace,
               concurix_trace_client,
-              concurix_trace_socket,
-              concurix_trace_app,
-              concurix_trace_sup
+              concurix_trace_socket_handler
              ]},
   {registered,            []},
   {included_applications, [erlcloud]},
   {applications,          [kernel, stdlib, crypto, ranch, cowboy, gproc]},
-  {env,                   []},
-  {mod,                   {concurix_runtime_app, []}}
+  {env,                   []}
  ]}.
