@@ -5,7 +5,6 @@
   {src_dirs, ["./"]},
   {modules,  [concurix_bench,
               concurix_file,
-              concurix_run,
               concurix_runtime,
               concurix_trace,
               concurix_trace_client,
