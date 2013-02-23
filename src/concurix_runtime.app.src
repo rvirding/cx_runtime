@@ -3,33 +3,19 @@
   {description, "Concurix VM Runtime enhancements"},
   {vsn, "0.1"},
   {src_dirs, ["./"]},
-  {modules, [concurix_bench,
-             concurix_compile,
-             concurix_file,
-             concurix_memo,
-             concurix_run,
-             concurix_runtime,
-             concurix_trace,
-             concurix_transform,
-			 concurix_trace_client,
-			 concurix_trace_socket,
-			 concurix_trace_app,
-			 concurix_trace_sup
+  {modules,  [concurix_bench,
+              concurix_file,
+              concurix_run,
+              concurix_runtime,
+              concurix_trace,
+              concurix_trace_client,
+              concurix_trace_socket,
+              concurix_trace_app,
+              concurix_trace_sup
              ]},
-  {registered, []},
-  {included_applications, [
-                           erlcloud,
-                           purity
-                           ]},
-  {applications, [
-                  kernel,
-                  stdlib,
-				  crypto,
-				  ranch,
-				  cowboy,
-				  gproc
-                 ]},
-  {env, []},
-  {mod, {concurix_runtime_app, []}}
+  {registered,            []},
+  {included_applications, [erlcloud]},
+  {applications,          [kernel, stdlib, crypto, ranch, cowboy, gproc]},
+  {env,                   []},
+  {mod,                   {concurix_runtime_app, []}}
  ]}.
-
