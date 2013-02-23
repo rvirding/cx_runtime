@@ -17,7 +17,11 @@ start(Filename, Options) ->
 	start(Filename),
 	case lists:member(msg_trace, Options) of
 		true ->
-			concurix_trace_socket:start();
+	          application:start(crypto),
+                  application:start(ranch),
+	          application:start(cowboy),
+	          application:start(gproc),
+	          application:start(concurix_runtime);
 		false ->
 			ok
 	end.

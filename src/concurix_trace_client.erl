@@ -287,11 +287,19 @@ get_current_json(State) ->
 	lists:flatten(mochijson2:encode([{data, Send}])).
 
 send_summary(State)->
-	Json 		= get_current_json(State),
-	Run_id 		= proplists:get_value(run_id, State#tcstate.runinfo),	
-	%%now send to the websocket
-	concurix_trace_socket:send(Run_id, Json).
-	
+	Json = get_current_json(State),
+
+	case gproc:lookup_pids({p, l, "benchrun_tracing"}) of
+		[] ->
+			ok;
+		_  ->
+			gproc:send({p, l, "benchrun_tracing"}, {trace, Json})
+	end.
+
+
+
+
+
 send_snapshot(State) ->
 	Json	 	= get_current_json(State),
 	Run_id 		= proplists:get_value(run_id, State#tcstate.runinfo),
