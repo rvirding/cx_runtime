@@ -1,6 +1,6 @@
 -module(concurix_trace_client).
 
--export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_full_trace/1, handle_system_profile/1, start_full_trace/0, handle_full_trace/1, start/0, get_run_info/0]).
+-export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_full_trace/1, handle_system_profile/1, start_full_trace/0, handle_full_trace/1, start/0, get_run_info/0, eval_string/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(tcstate, {proctable, linktable, sptable, timertable, runinfo, sp_pid}).
@@ -169,12 +169,20 @@ get_run_info() ->
 	%%io:format("url: ~p reply: ~p ~n", [Url, Reply]),
 	case Reply of
 		{_, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} -> 
-			concurix_compile:eval_string(Body);
+			eval_string(Body);
 		_X ->
 			{Mega, Secs, Micro} = now(), 
 			lists:flatten(io_lib:format("local-~p-~p-~p",[Mega, Secs, Micro]))
 	end.
 	
+
+%%
+%% some helper functions
+eval_string(String) ->
+    {ok, Tokens, _} = erl_scan:string(lists:concat([String, "."])),
+    {_Status, Term} = erl_parse:parse_term(Tokens),
+	Term.
+
 cleanup_timers() ->
 	case ets:info(cx_timers) of
 		undefined -> 

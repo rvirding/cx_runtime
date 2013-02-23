@@ -23,7 +23,7 @@ start(Filename, Options) ->
 	end.
 	
 start_text(Text) ->
-	Config = concurix_compile:eval_string(Text),
+	Config = concurix_trace_client:eval_string(Text),
 	start_config(Config).
 		
 start_config(Config) ->
