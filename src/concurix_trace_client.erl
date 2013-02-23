@@ -2,7 +2,7 @@
 
 -export([start/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([start_trace_client/0, send_summary/1, send_snapshot/1, handle_system_profile/1, get_run_info/0, eval_string/1]).
+-export([send_summary/1, send_snapshot/1, handle_system_profile/1]).
 
 -record(tcstate, {proctable, linktable, sptable, timertable, runinfo, sp_pid}).
 
@@ -57,13 +57,20 @@ start_trace_client() ->
   Timers    = setup_ets_table(cx_timers),
 
   RunInfo   = get_run_info(), 
-  Sp_pid    = spawn_link(concurix_trace_client, handle_system_profile, [Prof]),
-  State     = #tcstate{proctable = Procs, linktable = Stats, sptable = Prof, timertable = Timers, runinfo = RunInfo, sp_pid = Sp_pid},
+  Sp_pid    = spawn_link(?MODULE, handle_system_profile, [Prof]),
+  State     = #tcstate{proctable  = Procs,
+                       linktable  = Stats,
+                       sptable    = Prof,
+                       timertable = Timers,
+                       runinfo    = RunInfo,
+                       sp_pid     = Sp_pid},
 
   %% now turn on the tracing
   {ok, Pid} = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
+
   erlang:link(Pid),
   dbg:p(all, [s,p]),
+
   erlang:system_profile(Sp_pid, [concurix]),
  
   %% this is a workaround for dbg:p not knowing the hidden scheduler_id flag. :-)
@@ -74,8 +81,8 @@ start_trace_client() ->
   erlang:trace(all, true, [procs, send, running, scheduler_id, T]),
 
   %% every two seconds send a web socket update.  every two minutes save to s3.
-  {ok, T1}  = timer:apply_interval(     2 * 1000, concurix_trace_client, send_summary,  [State]),
-  {ok, T2}  = timer:apply_interval(2 * 60 * 1000, concurix_trace_client, send_snapshot, [State]),
+  {ok, T1}  = timer:apply_interval(     2 * 1000, ?MODULE, send_summary,  [State]),
+  {ok, T2}  = timer:apply_interval(2 * 60 * 1000, ?MODULE, send_snapshot, [State]),
 
   ets:insert(cx_timers, {realtime_timer, T1}),
   ets:insert(cx_timers, {s3_timer,       T2}),
@@ -222,7 +229,7 @@ handle_trace_message(_Msg, State) ->
 get_current_json(State) ->
  ets:safe_fixtable(State#tcstate.proctable, true),
  ets:safe_fixtable(State#tcstate.linktable, true),
- ets:safe_fixtable(State#tcstate.sptable, true),
+ ets:safe_fixtable(State#tcstate.sptable,   true),
 
  RawProcs       = ets:tab2list(State#tcstate.proctable),
  RawLinks       = ets:tab2list(State#tcstate.linktable),
@@ -235,12 +242,37 @@ get_current_json(State) ->
  ets:safe_fixtable(State#tcstate.sptable,   false),
 
 
- TempProcs  = [ [{name, pid_to_b(Pid)}, {module, term_to_b(M)}, {function, term_to_b(F)}, {arity, A}, local_process_info(Pid, reductions), local_process_info(Pid, total_heap_size), term_to_b({service, Service}), {scheduler, Scheduler}] || {Pid, {M, F, A}, Service, Scheduler} <- Procs ],
- TempLinks  = [ [{source, pid_to_b(A)}, {target, pid_to_b(B)}, {value, C}] || {{A, B}, C} <- Links],
- Schedulers = [ [{scheduler, Id}, {process_create, Create}, {quanta_count, QCount}, {quanta_time, QTime}, {send, Send}, {gc, GC}, {true_call_count, True}, {tail_call_count, Tail}, {return_count, Return}, {process_free, Free}] || {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
+ TempProcs      = [ [{name,     pid_to_b(Pid)}, 
+                     {module,   term_to_b(M)}, 
+                     {function, term_to_b(F)}, 
+                     {arity,    A}, 
+                     local_process_info(Pid, reductions),
+                     local_process_info(Pid, total_heap_size),
+                     term_to_b({service, Service}),
+                     {scheduler, Scheduler}] || 
+                     {Pid, {M, F, A}, Service, Scheduler} <- Procs ],
+ TempLinks      = [ [{source, pid_to_b(A)}, 
+                     {target, pid_to_b(B)},
+                     {value, C}] || 
+                     {{A, B}, C} <- Links],
+ Schedulers     = [ [{scheduler, Id}, 
+                     {process_create, Create}, 
+                     {quanta_count, QCount}, 
+                     {quanta_time, QTime}, 
+                     {send, Send}, 
+                     {gc, GC},
+                     {true_call_count, True},
+                     {tail_call_count, Tail},
+                     {return_count, Return},
+                     {process_free, Free}] ||
+                     {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
 
- Run_id     = proplists:get_value(run_id, State#tcstate.runinfo),
- Send       = [{version, 1}, {run_id, list_to_binary(Run_id)}, {nodes, TempProcs}, {links, TempLinks}, {schedulers, Schedulers}],
+ Run_id         = proplists:get_value(run_id, State#tcstate.runinfo),
+ Send           = [{version,    1},
+                   {run_id,     list_to_binary(Run_id)},
+                   {nodes,      TempProcs},
+                   {links,      TempLinks},
+                   {schedulers, Schedulers}],
  
  lists:flatten(mochijson2:encode([{data, Send}])).
 
