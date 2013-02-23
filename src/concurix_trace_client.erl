@@ -1,6 +1,6 @@
 -module(concurix_trace_client).
 
--export([start/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([start/1, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -export([send_summary/1, send_snapshot/1, handle_system_profile/1]).
 
@@ -10,11 +10,11 @@
 %% gen_server support
 %%
 
-start() ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start(Config) ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
 
-init([]) ->
-  State = start_trace_client(),
+init([Config]) ->
+  State = start_trace_client(Config),
   {ok, State}.
  
 handle_call(_Call, _From, State) ->
@@ -30,7 +30,7 @@ terminate(_Reason, _State) ->
   dbg:stop_clear(),
   cleanup_timers(),
 
-  %% TODO--we shoudl pull these from the state object vs global names
+  %% TODO--we should pull these from the state object vs global names
   ets:delete(cx_linkstats),
   ets:delete(cx_procinfo),
   ets:delete(cx_sysprof),
@@ -41,14 +41,15 @@ code_change(_oldVsn, State, _Extra) ->
   {ok, State}.
  
  
-%% internal APIs 
-
 %%
 %% do the real work of starting a run.
-start_trace_client() ->
-  io:format("starting tracing~n"),
+%%
+start_trace_client(Config) ->
+  io:format("Starting tracing~n"),
+
   dbg:stop_clear(), %% clear out anything that might be lurking around (e.g. from a previous run)
   dbg:start(),
+
   cleanup_timers(),
 
   Stats     = setup_ets_table(cx_linkstats),
@@ -56,7 +57,7 @@ start_trace_client() ->
   Prof      = setup_ets_table(cx_sysprof),
   Timers    = setup_ets_table(cx_timers),
 
-  RunInfo   = get_run_info(), 
+  RunInfo   = get_run_info(Config),
   Sp_pid    = spawn_link(?MODULE, handle_system_profile, [Prof]),
   State     = #tcstate{proctable  = Procs,
                        linktable  = Stats,
@@ -98,19 +99,24 @@ setup_ets_table(T) ->
       ets:delete_all_objects(T), T
  end.
 
-%%make an http call back to concurix for our run id.
-%%right now we'll assume that the synchronous version of httpc works,
-%%though we know it has some intermittent problems under chicago boss.
-get_run_info() ->
-  [{concurix_server, Server}] = ets:lookup(concurix_config_master, concurix_server),
-  [{api_key,         APIkey}] = ets:lookup(concurix_config_master, api_key),
+%% Make an http call back to concurix for our run id.
+%% We assume that the synchronous version of httpc works, though
+%% we know it has some intermittent problems under chicago boss.
 
-  inets:start(),
+%% The Config is of the form
+%%
+%% [{master, [{ concurix_server, "localhost:8001" },
+%%            { user,            "Michael Noakes" },
+%%            { project,         "Mandelbrot" },
+%%            { api_key,         "4338059-1360-195211-1855" }]}]
 
-  Url                         = "http://" ++ Server ++ "/bench/new_offline_run/" ++ APIkey,
-  Reply                       = httpc:request(Url),
+get_run_info(Config) ->
+  { ok, Server } = config_option(Config, master, concurix_server),
+  { ok, APIkey } = config_option(Config, master, api_key),
 
-  %%io:format("url: ~p reply: ~p ~n", [Url, Reply]),
+  Url            = "http://" ++ Server ++ "/bench/new_offline_run/" ++ APIkey,
+  Reply          = httpc:request(Url),
+
   case Reply of
     {_, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} -> 
       eval_string(Body);
@@ -119,10 +125,32 @@ get_run_info() ->
       {Mega, Secs, Micro} = now(), 
       lists:flatten(io_lib:format("local-~p-~p-~p",[Mega, Secs, Micro]))
   end.
+
+
+config_option([], _Slot, _Key) ->
+  undefined;
+
+config_option([{Slot, SlotConfig} | _Tail], Slot, Key) ->
+  config_option(SlotConfig, Key);
+
+config_option([_Head | Tail], Slot, Key) ->
+  config_option(Tail, Slot, Key).
+
+
+config_option([], _Key) ->
+  undefined;
+
+config_option([{Key, Value} | _Tail], Key) ->
+  { ok, Value};
+
+config_option([_Head | Tail], Key) ->
+  config_option(Tail, Key).
+
+
+
+
  
 
-%%
-%% some helper functions
 eval_string(String) ->
   {ok, Tokens, _} = erl_scan:string(lists:concat([String, "."])),
   {_Status, Term} = erl_parse:parse_term(Tokens),
@@ -496,9 +524,6 @@ validate_tables(Procs, Links, _State) ->
   {Procs ++ NewProcs, Links}. 
 
 transmit_data_to_s3(Run_id, Key, Data, Url, Fields) ->
- inets:start(),
- ssl:start(),
- 
  SendFields = update_fields(Run_id, Fields, Key),
  
  Request    = erlcloud_s3:make_post_http_request(Url, SendFields, Data),
