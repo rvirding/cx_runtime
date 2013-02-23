@@ -1,9 +1,11 @@
 -module(concurix_runtime).
 
--export([start/2]).
+-behaviour(gen_server).
+
+-export([start/2, stop/0]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([send_summary/1, send_snapshot/1, handle_system_profile/1]).
+-export([handle_system_profile/1, send_summary/1, send_snapshot/1]).
 
 -record(tcstate, {proctable, linktable, sptable, timertable, runinfo, sp_pid}).
 
@@ -15,31 +17,35 @@ start(Filename, Options) ->
 
       {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
 
-      application:start(cowboy),
-      application:start(crypto),
-      application:start(gproc),
-      application:start(inets),
-      application:start(ranch),
-      application:start(ssl),
-
-      %%                                {HostMatch, list({Path, Handler,                       Opts})}
-      Dispatch = cowboy_router:compile([{'_',       [    {"/",  concurix_trace_socket_handler, []} ]}]),
-
-      %%                Name, NbAcceptors, TransOpts,      ProtoOpts
-      cowboy:start_http(http, 100,         [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
-
       gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []);
 
     false ->
       ok
- end.
+  end.
+
+stop() ->
+  ok.
 
 %%
 %% gen_server support
 %%
 
 init([Config]) ->
-  State = start_trace_client(Config),
+  application:start(cowboy),
+  application:start(crypto),
+  application:start(gproc),
+  application:start(inets),
+  application:start(ranch),
+  application:start(ssl),
+
+  %%                                {HostMatch, list({Path, Handler,                       Opts})}
+  Dispatch = cowboy_router:compile([{'_',       [    {"/",  concurix_trace_socket_handler, []} ]}]),
+
+  %%                Name, NbAcceptors, TransOpts,      ProtoOpts
+  cowboy:start_http(http, 100,         [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
+
+  State    = start_trace_client(Config),
+
   {ok, State}.
  
 handle_call(_Call, _From, State) ->
@@ -72,7 +78,8 @@ code_change(_oldVsn, State, _Extra) ->
 start_trace_client(Config) ->
   io:format("Starting tracing~n"),
 
-  dbg:stop_clear(), %% clear out anything that might be lurking around (e.g. from a previous run)
+  %% Ensure there isn't any state from a previous run
+  dbg:stop_clear(),
   dbg:start(),
 
   cleanup_timers(),
@@ -83,7 +90,10 @@ start_trace_client(Config) ->
   Timers    = setup_ets_table(cx_timers),
 
   RunInfo   = get_run_info(Config),
+
   Sp_pid    = spawn_link(?MODULE, handle_system_profile, [Prof]),
+  erlang:system_profile(Sp_pid, [concurix]),
+
   State     = #tcstate{proctable  = Procs,
                        linktable  = Stats,
                        sptable    = Prof,
@@ -95,18 +105,16 @@ start_trace_client(Config) ->
   {ok, Pid} = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
 
   erlang:link(Pid),
-  dbg:p(all, [s,p]),
-
-  erlang:system_profile(Sp_pid, [concurix]),
+  dbg:p(all, [s, p]),
  
   %% this is a workaround for dbg:p not knowing the hidden scheduler_id flag. :-)
   %% basically we grab the tracer setup in dbg and then add a few more flags
   T         = erlang:trace_info(self(), tracer),
 
-  %%io:format("trace_info_flag ~p ~n",[ erlang:trace_info(self(), flags)]),
   erlang:trace(all, true, [procs, send, running, scheduler_id, T]),
 
-  %% every two seconds send a web socket update.  every two minutes save to s3.
+  %% Every two seconds send a web socket update.
+  %% Every two minutes save to s3.
   {ok, T1}  = timer:apply_interval(     2 * 1000, ?MODULE, send_summary,  [State]),
   {ok, T2}  = timer:apply_interval(2 * 60 * 1000, ?MODULE, send_snapshot, [State]),
 
@@ -115,25 +123,29 @@ start_trace_client(Config) ->
  
   State.
  
+cleanup_timers() ->
+  case ets:info(cx_timers) of
+    undefined -> 
+      ok;
+
+    _ -> 
+     List = ets:tab2list(cx_timers),
+     [ timer:cancel(T) || {_Y, T } <- List]
+  end.
+
 setup_ets_table(T) ->
   case ets:info(T) of
     undefined ->
       ets:new(T, [public, named_table]);
 
     _ -> 
-      ets:delete_all_objects(T), T
- end.
+      ets:delete_all_objects(T), 
+      T
+  end.
 
 %% Make an http call back to concurix for our run id.
 %% We assume that the synchronous version of httpc works, though
 %% we know it has some intermittent problems under chicago boss.
-
-%% The Config is of the form
-%%
-%% [{master, [{ concurix_server, "localhost:8001" },
-%%            { user,            "Michael Noakes" },
-%%            { project,         "Mandelbrot" },
-%%            { api_key,         "4338059-1360-195211-1855" }]}]
 
 get_run_info(Config) ->
   { ok, Server } = config_option(Config, master, concurix_server),
@@ -181,21 +193,16 @@ eval_string(String) ->
   {_Status, Term} = erl_parse:parse_term(Tokens),
   Term.
 
-cleanup_timers() ->
-  case ets:info(cx_timers) of
-    undefined -> 
-      ok;
 
-    _ -> 
-     List = ets:tab2list(cx_timers),
-     [ timer:cancel(T) || {_Y, T } <- List]
-  end.
+
+%%
+%%
+%%
  
 handle_system_profile(Proftable) ->
   receive
     { profile, concurix, Id,  Summary, TimestampStart, TimestampStop } ->
       ets:insert(Proftable, {Id, {Summary, TimestampStart, TimestampStop}}),
-      %%io:format("PROFILE-SUMMARY:  ~p ~p ~p ~p~n", [TimestampStart, TimestampStop, Id, Summary]),
       handle_system_profile(Proftable);
 
     Other ->
@@ -203,14 +210,23 @@ handle_system_profile(Proftable) ->
       handle_system_profile(Proftable)
   end.
  
+
+
+%%
+%%
+%%
+ 
 handle_trace_message({trace, Sender, send, _Data, Recipient}, State) ->
   update_proc_table([Sender, Recipient], State, []),
+
   case ets:lookup(State#tcstate.linktable, {Sender, Recipient}) of
     [] ->
       ets:insert(State#tcstate.linktable, {{Sender, Recipient}, 1});
+
     _ ->
       ets:update_counter(State#tcstate.linktable, {Sender, Recipient}, 1)
   end, 
+
   State;
 
 handle_trace_message({trace, Pid, exit, _Reason}, State) ->
@@ -240,9 +256,9 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
 
     X ->
       %%io:format("got unknown spawn of ~p ~n", [X]),
-      Mod  = unknown,
-     Fun   = X,
-     Arity = 0
+      Mod   = unknown,
+      Fun   = X,
+      Arity = 0
   end,
 
   Service = mod_to_service(Mod),
@@ -278,99 +294,20 @@ handle_trace_message({trace, _Pid, link, _Pid2}, State) ->
 handle_trace_message(_Msg, State) ->
   %%io:format("msg = ~p ~n", [Msg]),
   State.
+
+decode_anon_fun(Fun) ->
+  Str = lists:flatten(io_lib:format("~p", [Fun])),
+
+  case string:tokens(Str, "<") of
+    ["#Fun", Name] ->
+      [Mod | _] = string:tokens(Name, ".");
+
+    _ ->
+      Mod = "anon_function"
+  end,
+
+  {Mod, Str, 0}.
  
-get_current_json(State) ->
- ets:safe_fixtable(State#tcstate.proctable, true),
- ets:safe_fixtable(State#tcstate.linktable, true),
- ets:safe_fixtable(State#tcstate.sptable,   true),
-
- RawProcs       = ets:tab2list(State#tcstate.proctable),
- RawLinks       = ets:tab2list(State#tcstate.linktable),
- RawSys         = ets:tab2list(State#tcstate.sptable),
-
- {Procs, Links} = validate_tables(RawProcs, RawLinks, State),
- 
- ets:safe_fixtable(State#tcstate.linktable, false),  
- ets:safe_fixtable(State#tcstate.proctable, false),
- ets:safe_fixtable(State#tcstate.sptable,   false),
-
-
- TempProcs      = [ [{name,     pid_to_b(Pid)}, 
-                     {module,   term_to_b(M)}, 
-                     {function, term_to_b(F)}, 
-                     {arity,    A}, 
-                     local_process_info(Pid, reductions),
-                     local_process_info(Pid, total_heap_size),
-                     term_to_b({service, Service}),
-                     {scheduler, Scheduler}] || 
-                     {Pid, {M, F, A}, Service, Scheduler} <- Procs ],
- TempLinks      = [ [{source, pid_to_b(A)}, 
-                     {target, pid_to_b(B)},
-                     {value, C}] || 
-                     {{A, B}, C} <- Links],
- Schedulers     = [ [{scheduler, Id}, 
-                     {process_create, Create}, 
-                     {quanta_count, QCount}, 
-                     {quanta_time, QTime}, 
-                     {send, Send}, 
-                     {gc, GC},
-                     {true_call_count, True},
-                     {tail_call_count, Tail},
-                     {return_count, Return},
-                     {process_free, Free}] ||
-                     {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
-
- Run_id         = proplists:get_value(run_id, State#tcstate.runinfo),
- Send           = [{version,    1},
-                   {run_id,     list_to_binary(Run_id)},
-                   {nodes,      TempProcs},
-                   {links,      TempLinks},
-                   {schedulers, Schedulers}],
- 
- lists:flatten(mochijson2:encode([{data, Send}])).
-
-send_summary(State)->
-  Json = get_current_json(State),
-
-  case gproc:lookup_pids({p, l, "benchrun_tracing"}) of
-    [] ->
-      ok;
-
-    _  ->
-      gproc:send({p, l, "benchrun_tracing"}, {trace, Json})
-  end.
-
-
-send_snapshot(State) ->
-  Json                = get_current_json(State),
-  Run_id              = proplists:get_value(run_id,    State#tcstate.runinfo),
-  Url                 = proplists:get_value(trace_url, State#tcstate.runinfo),
-  Fields              = proplists:get_value(fields,    State#tcstate.runinfo),
-  {Mega, Secs, Micro} = now(),
-  Key                 = lists:flatten(io_lib:format("json_realtime_trace_snapshot.~p.~p-~p-~p",[node(), Mega, Secs, Micro])),
- 
-  transmit_data_to_s3(Run_id, Key, list_to_binary(Json), Url, Fields).
- 
-pid_to_b(Pid) ->
-  list_to_binary(lists:flatten(io_lib:format("~p", [Pid]))).
-
-term_to_b({Key, Value}) ->
-  Bin = term_to_b(Value),
-  {Key, Bin};
-
-term_to_b(Val) when is_list(Val) ->
-  case io_lib:printable_list(Val) of
-    true  ->
-      list_to_binary(Val);
-    false ->
-      [ term_to_b(X) || X <- Val]
-  end; 
-
-term_to_b(Term) ->
-  list_to_binary(lists:flatten(io_lib:format("~p", [Term]))).
-  
-%
-%
 update_proc_table([], _State, Acc) ->
   Acc;
 
@@ -399,11 +336,145 @@ update_proc_scheduler(Pid, Scheduler, State) ->
     X ->
       io:format("yikes, corrupt proc table ~p ~n", [X])
   end.
+
+
+%%
+%%
+%% 
+
+send_summary(State)->
+  Json = get_current_json(State),
+
+  case gproc:lookup_pids({p, l, "benchrun_tracing"}) of
+    [] ->
+      ok;
+
+    _  ->
+      gproc:send({p, l, "benchrun_tracing"}, {trace, Json})
+  end.
+
+%%
+%%
+%% 
+
+send_snapshot(State) ->
+  Url     = proplists:get_value(trace_url, State#tcstate.runinfo),
+  Fields  = snapshot_fields(State),
+  Data    = list_to_binary(get_current_json(State)),
+
+  Request = erlcloud_s3:make_post_http_request(Url, Fields, Data),
+
+  httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]).
+
+snapshot_fields(State) ->
+  Run_id              = proplists:get_value(run_id, State#tcstate.runinfo),
+  Fields              = proplists:get_value(fields, State#tcstate.runinfo),
+
+  {Mega, Secs, Micro} = now(),
+  KeyString           = io_lib:format("json_realtime_trace_snapshot.~p.~p-~p-~p",[node(), Mega, Secs, Micro]),
+  Key                 = lists:flatten(KeyString),
+
+  case proplists:is_defined(key, Fields) of
+    true  ->
+      Temp = proplists:delete(key, Fields);
+
+    false -> 
+      Temp = Fields
+  end,
+
+  Temp ++ [{key, Run_id ++ "/" ++ Key}].
+
+%%
+%%
+%% 
+
+get_current_json(State) ->
+  ets:safe_fixtable(State#tcstate.proctable, true),
+  ets:safe_fixtable(State#tcstate.linktable, true),
+  ets:safe_fixtable(State#tcstate.sptable,   true),
+
+  RawProcs       = ets:tab2list(State#tcstate.proctable),
+  RawLinks       = ets:tab2list(State#tcstate.linktable),
+  RawSys         = ets:tab2list(State#tcstate.sptable),
+
+  {Procs, Links} = validate_tables(RawProcs, RawLinks, State),
+ 
+  ets:safe_fixtable(State#tcstate.linktable, false),  
+  ets:safe_fixtable(State#tcstate.proctable, false),
+  ets:safe_fixtable(State#tcstate.sptable,   false),
+
+  TempProcs      = [ [{name,     pid_to_b(Pid)}, 
+                      {module,   term_to_b(M)}, 
+                      {function, term_to_b(F)}, 
+                      {arity,    A}, 
+                      local_process_info(Pid, reductions),
+                      local_process_info(Pid, total_heap_size),
+                      term_to_b({service, Service}),
+                      {scheduler, Scheduler}] || 
+                      {Pid, {M, F, A}, Service, Scheduler} <- Procs ],
+
+  TempLinks      = [ [{source, pid_to_b(A)}, 
+                      {target, pid_to_b(B)},
+                      {value, C}] || 
+                      {{A, B}, C} <- Links],
+
+  Schedulers     = [ [{scheduler,       Id}, 
+                      {process_create,  Create}, 
+                      {quanta_count,    QCount}, 
+                      {quanta_time,     QTime}, 
+                      {send,            Send}, 
+                      {gc,              GC},
+                      {true_call_count, True},
+                      {tail_call_count, Tail},
+                      {return_count,    Return},
+                      {process_free,    Free}] ||
+                      {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
+
+  Run_id         = proplists:get_value(run_id, State#tcstate.runinfo),
+
+  Send           = [{version,    1},
+                    {run_id,     list_to_binary(Run_id)},
+                    {nodes,      TempProcs},
+                    {links,      TempLinks},
+                    {schedulers, Schedulers}],
+ 
+  lists:flatten(mochijson2:encode([{data, Send}])).
+
+validate_tables(Procs, Links, _State) ->
+  Val         = lists:flatten([[A, B] || {{A, B}, _} <- Links]),
+  Tempprocs   = lists:usort([ A || {A, _, _, _} <-Procs ]),
+  Templinks   = lists:usort(Val),
+  Updateprocs = Templinks -- Tempprocs, 
+ 
+  NewProcs    = update_process_info(Updateprocs, []),
+  {Procs ++ NewProcs, Links}. 
+
+pid_to_b(Pid) ->
+  list_to_binary(lists:flatten(io_lib:format("~p", [Pid]))).
+
+term_to_b({Key, Value}) ->
+  {Key, term_to_b(Value)};
+
+term_to_b(Val) when is_list(Val) ->
+  case io_lib:printable_list(Val) of
+    true  ->
+      list_to_binary(Val);
+    false ->
+      [ term_to_b(X) || X <- Val]
+  end; 
+
+term_to_b(Term) ->
+  list_to_binary(lists:flatten(io_lib:format("~p", [Term]))).
+  
+%%
+%%
+%%
  
 local_process_info(Pid, reductions) when is_pid(Pid) ->
   case process_info(Pid, reductions) of
     undefined ->
       {reductions, 1};
+
     X ->
       X
    end;
@@ -412,6 +483,7 @@ local_process_info(Pid, initial_call) when is_pid(Pid) ->
   case process_info(Pid, initial_call) of
     undefined ->
       {initial_call, {unknown, unknown, 0}};
+
     X ->
       X
   end;
@@ -420,6 +492,7 @@ local_process_info(Pid, current_function) when is_pid(Pid) ->
   case process_info(Pid, current_function) of
     undefined ->
       {current_function, {unknown, unknown, 0}};
+
     X ->
       X
   end;
@@ -437,6 +510,7 @@ local_process_info(Pid, total_heap_size) when is_pid(Pid) ->
   case process_info(Pid, total_heap_size) of
     undefined ->
       {total_heap_size, 1};
+
     X ->
       X
   end;
@@ -447,44 +521,11 @@ local_process_info(Pid, initial_call) when is_port(Pid) ->
 
 local_process_info({Pid, _X}, Key)     ->
   local_process_info(Pid, Key).
- 
-local_translate_initial_call(Pid) when is_pid(Pid) ->
-  proc_lib:translate_initial_call(Pid);
 
-local_translate_initial_call(Pid) when is_atom(Pid) ->
-  proc_lib:translate_initial_call(whereis(Pid));
+%%
+%%
+%%
 
-local_translate_initial_call({Pid, _X}) ->
-  local_translate_initial_call(Pid).
- 
-decode_anon_fun(Fun) ->
-  Str = lists:flatten(io_lib:format("~p", [Fun])),
-
-  case string:tokens(Str, "<") of
-    ["#Fun", Name] ->
-      [Mod | _] = string:tokens(Name, ".");
-
-    _ ->
-      %io:format("yikes, could not decode ~p of ~p ~n", [Fun, Str]),
-      Mod = "anon_function"
-  end,
-
-  {Mod, Str, 0}.
- 
-
-
-mod_to_service(Mod) when is_list(Mod)->
-  mod_to_service(list_to_atom(Mod));
-
-mod_to_service(Mod) ->
-  case lists:keyfind(Mod, 1, code:all_loaded()) of
-    false->
-      Mod;
-
-    {_, Path} ->
-      path_to_service(Path)
-  end.
- 
 path_to_service(preloaded) ->
   preloaded;
 
@@ -501,6 +542,10 @@ path_to_service(Path) ->
     _ ->
       Path
   end.
+
+%%
+%%
+%%
 
 update_process_info(Pid) ->
   update_process_info([Pid], []).
@@ -520,6 +565,7 @@ update_process_info([Pid | T], Acc) ->
           case local_process_info(Pid, current_function) of
             {current_function, {Mod, Fun, Arity}} -> 
               ok;
+
             _ -> 
               %%("got unknown current function results of ~p ~n", [X]),
               {Mod, Fun, Arity} = {erlang, apply, 0}
@@ -537,31 +583,36 @@ update_process_info([Pid | T], Acc) ->
 
   Service = mod_to_service(Mod),
   NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service}],
+
   update_process_info(T, NewAcc).
   
-validate_tables(Procs, Links, _State) ->
-  Val         = lists:flatten([[A, B] || {{A, B}, _} <- Links]),
-  Tempprocs   = lists:usort([ A || {A, _, _, _} <-Procs ]),
-  Templinks   = lists:usort(Val),
-  Updateprocs = Templinks -- Tempprocs, 
+%%
+%%
+%%
  
-  NewProcs    = update_process_info(Updateprocs, []),
-  {Procs ++ NewProcs, Links}. 
+local_translate_initial_call(Pid) when is_pid(Pid) ->
+  proc_lib:translate_initial_call(Pid);
 
-transmit_data_to_s3(Run_id, Key, Data, Url, Fields) ->
- SendFields = update_fields(Run_id, Fields, Key),
+local_translate_initial_call(Pid) when is_atom(Pid) ->
+  proc_lib:translate_initial_call(whereis(Pid));
+
+local_translate_initial_call({Pid, _X}) ->
+  local_translate_initial_call(Pid).
  
- Request    = erlcloud_s3:make_post_http_request(Url, SendFields, Data),
 
- httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]).
+%%
+%%
+%%
 
-update_fields(Run_id, Fields, File) ->
-  case proplists:is_defined(key, Fields) of
-    true  ->
-      Temp = proplists:delete(key, Fields);
+mod_to_service(Mod) when is_list(Mod)->
+  mod_to_service(list_to_atom(Mod));
 
-    false -> 
-      Temp = Fields
-  end,
+mod_to_service(Mod) ->
+  case lists:keyfind(Mod, 1, code:all_loaded()) of
+    false->
+      Mod;
 
-  Temp ++ [{key, Run_id ++ "/" ++ File}].
+    {_, Path} ->
+      path_to_service(Path)
+  end.
+ 
