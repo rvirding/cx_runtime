@@ -1,6 +1,6 @@
 -module(concurix_trace_client).
 
--export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_full_trace/1, handle_system_profile/1, start_full_trace/0, handle_full_trace/1, start/0]).
+-export([start_trace_client/0, send_summary/1, send_snapshot/1, stop_full_trace/1, handle_system_profile/1, start_full_trace/0, handle_full_trace/1, start/0, get_run_info/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(tcstate, {proctable, linktable, sptable, timertable, runinfo, sp_pid}).
@@ -126,7 +126,7 @@ start_trace_client() ->
 	Prof  = setup_ets_table(cx_sysprof),
 	Timers = setup_ets_table(cx_timers),
 
-	RunInfo = concurix_run:get_run_info(),	
+	RunInfo = get_run_info(),	
 	Sp_pid = spawn_link(concurix_trace_client, handle_system_profile, [Prof]),
 	State = #tcstate{proctable = Procs, linktable = Stats, sptable = Prof, timertable = Timers, runinfo = RunInfo, sp_pid = Sp_pid},
 
@@ -157,6 +157,24 @@ setup_ets_table(T) ->
 		_X -> ets:delete_all_objects(T), T
 	end.
 
+%%make an http call back to concurix for our run id.
+%%right now we'll assume that the synchronous version of httpc works,
+%%though we know it has some intermittent problems under chicago boss.
+get_run_info() ->
+	[{concurix_server, Server}] = 	ets:lookup(concurix_config_master, concurix_server),
+	[{api_key, APIkey}] = 			ets:lookup(concurix_config_master, api_key),
+	inets:start(),
+	Url = "http://" ++ Server ++ "/bench/new_offline_run/" ++ APIkey,
+	Reply = httpc:request(Url),
+	%%io:format("url: ~p reply: ~p ~n", [Url, Reply]),
+	case Reply of
+		{_, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} -> 
+			concurix_compile:eval_string(Body);
+		_X ->
+			{Mega, Secs, Micro} = now(), 
+			lists:flatten(io_lib:format("local-~p-~p-~p",[Mega, Secs, Micro]))
+	end.
+	
 cleanup_timers() ->
 	case ets:info(cx_timers) of
 		undefined -> 
