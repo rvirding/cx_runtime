@@ -63,4 +63,4 @@ install-cx-runtime:
 	install scripts/concurix_runtime.boot             $(ROOT)/releases/R15B02
 	install scripts/concurix_runtime.script           $(ROOT)/releases/R15B02
 
-install: release install-cowboy install-erlcloud install-purity install-gproc install-mochiweb install-cx-runtime
+install: install-cowboy install-erlcloud install-purity install-gproc install-mochiweb install-cx-runtime
