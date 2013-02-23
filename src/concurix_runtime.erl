@@ -2,16 +2,16 @@
 -export([start/2]).
 
 start(Filename, Options) ->
-  {ok, CWD }          = file:get_cwd(),
-  Dirs                = code:get_path(),
-
-  {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
-
-  setup_ets_tables([concurix_config_master]),
-  setup_config(Config),
-
   case lists:member(msg_trace, Options) of
     true  ->
+      {ok, CWD }          = file:get_cwd(),
+      Dirs                = code:get_path(),
+
+      {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
+
+      setup_ets_tables([concurix_config_master]),
+      setup_config(Config),
+
       application:start(crypto),
       application:start(ranch),
       application:start(cowboy),
@@ -29,33 +29,31 @@ start(Filename, Options) ->
       ok
  end.
  
-%% we setup ets tables for configuration now to simplify the compile logic.  this
-%% way every table is available even if the particular customer instance does not
-%% have any options
-
+%% Setup ets tables for configuration now to simplify the compile logic.
 setup_ets_tables([]) ->
   ok;
 
-setup_ets_tables([H | T]) ->
-  case ets:info(H) of
+setup_ets_tables([Head | Tail]) ->
+  case ets:info(Head) of
     undefined ->
-      ets:new(H, [public, named_table, {read_concurrency, true}, {heir, whereis(init), concurix}]);
+      ets:new(Head, [public, named_table, {read_concurrency, true}, {heir, whereis(init), concurix}]);
 
     _ -> 
-      ets:delete_all_objects(H)
- end,
+      ets:delete_all_objects(Head)
+  end,
 
- setup_ets_tables(T).
+  setup_ets_tables(Tail).
  
+
+
+
 setup_config([]) ->
   ok;
 
 setup_config([{master, MasterConfig} | Tail]) ->
-  %%io:format('got master config ~p ~n', [MasterConfig]),
   lists:foreach(fun(X) -> {Key, Val} = X, ets:insert(concurix_config_master, {Key, Val}) end, MasterConfig),
   setup_config(Tail);
 
 setup_config([Head | Tail]) ->
-  %% do something with head
   io:format("unknown concurix configuration ~p ~n", [Head]),
   setup_config(Tail).
