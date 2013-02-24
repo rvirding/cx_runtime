@@ -63,7 +63,7 @@ handle_cast(_Msg, State) ->
 handle_info(_Info, State) ->
   {noreply, State}.
 
-terminate(_Reason, _State) ->
+terminate(_Reason, State) ->
   dbg:stop_clear(),
   cleanup_timers(),
 
@@ -107,9 +107,9 @@ start_trace_client(Config) ->
                        sp_pid     = Sp_pid},
 
   %% now turn on the tracing
-  {ok, Pid} = dbg:tracer(process, {fun(A,B) -> handle_trace_message(A,B) end, State }),
-
+  {ok, Pid} = dbg:tracer(process, { fun(A, B) -> handle_trace_message(A, B) end, State }),
   erlang:link(Pid),
+
   dbg:p(all, [s, p]),
  
   %% this is a workaround for dbg:p not knowing the hidden scheduler_id flag. :-)
@@ -118,8 +118,6 @@ start_trace_client(Config) ->
 
   erlang:trace(all, true, [procs, send, running, scheduler_id, T]),
 
-  %% Every two seconds send a web socket update.
-  %% Every two minutes save to s3.
   {ok, T1}  = timer:apply_interval(?TIMER_INTERVAL_VIZ, ?MODULE, send_summary,  [State]),
   {ok, T2}  = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [State]),
 
