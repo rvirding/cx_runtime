@@ -9,11 +9,8 @@
 
 -record(tcstate, {processTable, linkTable, sysProfTable, timerTable, runInfo, sysProfPid, webSocketPid}).
 
-%% Send an update to the visualizer every two seconds
-%% Send a  snapshot to S3           every two minutes
-
--define(TIMER_INTERVAL_VIZ,        2 * 1000).
--define(TIMER_INTERVAL_S3,    2 * 60 * 1000).
+-define(TIMER_INTERVAL_VIZ,        2 * 1000).    %% Update VIZ every 2 seconds
+-define(TIMER_INTERVAL_S3,    2 * 60 * 1000).    %% Update S3  every 2 minutes
 
 start(Filename, Options) ->
   case lists:member(msg_trace, Options) of
@@ -35,10 +32,12 @@ stop() ->
 %%
 %%  Children needed to
 %%
-%%      1) Run the standard tracer
-%%      2) Run the system profiler
-%%      3) To maintain a long running update to S3
-%%      4) To communicate with Browser over an open websocket
+%%    1) Run the standard tracer
+%%    2) Run the system profiler
+%%
+%%    3) To communicate with Browser over an open websocket
+%%    4) To maintain a long running update to S3
+%%
 
 %%
 %% gen_server support
@@ -106,38 +105,38 @@ start_trace_client(Config) ->
 
   cleanup_timers(),
 
-  Stats      = setup_ets_table(cx_linkstats),
   Procs      = setup_ets_table(cx_procinfo),
-  Prof       = setup_ets_table(cx_sysprof),
+  Links      = setup_ets_table(cx_linkstats),
+  SysProf    = setup_ets_table(cx_sysprof),
   Timers     = setup_ets_table(cx_timers),
 
   RunInfo    = get_run_info(Config),
 
-  SysProfPid = spawn_link(?MODULE, handle_system_profile, [Prof]),
+  SysProfPid = spawn_link(?MODULE, handle_system_profile, [SysProf]),
   erlang:system_profile(SysProfPid, [concurix]),
 
   State      = #tcstate{processTable = Procs,
-                        linkTable    = Stats,
-                        sysProfTable = Prof,
+                        linkTable    = Links,
+                        sysProfTable = SysProf,
                         timerTable   = Timers,
                         runInfo      = RunInfo,
                         sysProfPid   = SysProfPid,
                         webSocketPid = undefined},
 
   %% now turn on the tracing
-  {ok, Pid} = dbg:tracer(process, { fun(A, B) -> handle_trace_message(A, B) end, State }),
+  {ok, Pid}  = dbg:tracer(process, { fun(A, B) -> handle_trace_message(A, B) end, State }),
   erlang:link(Pid),
 
   dbg:p(all, [s, p]),
  
   %% this is a workaround for dbg:p not knowing the hidden scheduler_id flag. :-)
   %% basically we grab the tracer setup in dbg and then add a few more flags
-  T         = erlang:trace_info(self(), tracer),
+  T          = erlang:trace_info(self(), tracer),
 
   erlang:trace(all, true, [procs, send, running, scheduler_id, T]),
 
-  {ok, T1}  = timer:apply_interval(?TIMER_INTERVAL_VIZ, ?MODULE, send_summary,  [State]),
-  {ok, T2}  = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [State]),
+  {ok, T1}   = timer:apply_interval(?TIMER_INTERVAL_VIZ, ?MODULE, send_summary,  [State]),
+  {ok, T2}   = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [State]),
 
   ets:insert(Timers, {realtime_timer, T1}),
   ets:insert(Timers, {s3_timer,       T2}),
