@@ -30,13 +30,13 @@ stop() ->
   ok.
 
 %%
-%%  Children needed to
+%% Children needed to
 %%
-%%    1) Run the standard tracer
-%%    2) Run the system profiler
+%%   1) Run the standard tracer
+%%   2) Run the system profiler
 %%
-%%    3) To communicate with Browser over an open websocket
-%%    4) To maintain a long running update to S3
+%%   3) Communicate with Browser over an open websocket
+%%   4) Maintain a long running update to S3
 %%
 
 %%
@@ -164,8 +164,17 @@ setup_ets_table(T) ->
   end.
 
 %% Make an http call back to concurix for our run id.
-%% We assume that the synchronous version of httpc works, though
+%% We assume that the synchronous version of httpc works, although
 %% we know it has some intermittent problems under chicago boss.
+
+%% Here is a representative response
+%%
+%% [ { run_id,    "benchrun-1426"},
+%%   { trace_url, "https://concurix_trace_data.s3.amazonaws.com/"},
+%%   { fields,    [ { key,             "benchrun-1426"},
+%%                  {'AWSAccessKeyId', "<AWS generated string>"},
+%%                  {policy,           "<AWS generated string>"},
+%%                  {signature,        "<AWS generated string>"}]}]
 
 get_run_info(Config) ->
   { ok, Server } = config_option(Config, master, concurix_server),
@@ -277,7 +286,7 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
   ets:insert(State#tcstate.processTable, Key),
 
   %% also include a link from the creator process to the created.
-  update_proc_table([Creator], State, []),
+  update_proc_table(Creator, State),
   ets:insert(State#tcstate.linkTable, {{Creator, Pid}, 1}),
   State;
 
@@ -285,7 +294,8 @@ handle_trace_message({trace, Pid, exit, _Reason}, State) ->
   ets:safe_fixtable(State#tcstate.processTable, true),
   ets:safe_fixtable(State#tcstate.linkTable,    true), 
 
-  ets:select_delete(State#tcstate.linkTable,    [ { {{'_', Pid},'_'}, [], [true]}, { {{Pid, '_'}, '_'}, [], [true] } ]),
+  ets:select_delete(State#tcstate.linkTable,    [ { {{'_', Pid}, '_'}, [], [true]}, 
+                                                  { {{Pid, '_'}, '_'}, [], [true] } ]),
   ets:select_delete(State#tcstate.processTable, [ { {Pid, '_', '_', '_'}, [], [true]}]),
 
   ets:safe_fixtable(State#tcstate.linkTable,    false),  
@@ -311,7 +321,8 @@ handle_trace_message({trace, Pid, out, Scheduler, _MFA}, State) ->
 %% Track messages sent
 %%
 handle_trace_message({trace, Sender, send, _Data, Recipient}, State) ->
-  update_proc_table([Sender, Recipient], State, []),
+  update_proc_table(Sender,    State),
+  update_proc_table(Recipient, State),
 
   case ets:lookup(State#tcstate.linkTable, {Sender, Recipient}) of
     [] ->
@@ -359,21 +370,15 @@ decode_anon_fun(Fun) ->
 
   {Mod, Str, 0}.
  
-update_proc_table([], _State, Acc) ->
-  Acc;
-
-update_proc_table([Pid | Tail], State, Acc) ->
+update_proc_table(Pid, State) ->
   case ets:lookup(State#tcstate.processTable, Pid) of
     [] ->
       [{Pid, {Mod, Fun, Arity}, Service}] = update_process_info(Pid),
-      NewAcc = Acc ++ [{Pid, {Mod, Fun, Arity}, Service}],
       ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, 0});
 
     _ ->
-      NewAcc = Acc
-  end,
-
-  update_proc_table(Tail, State, NewAcc).
+      ok
+  end.
 
 update_proc_scheduler(Pid, Scheduler, State) ->
   case ets:lookup(State#tcstate.processTable, Pid) of 
@@ -414,11 +419,11 @@ send_summary(State)->
 %% 
 
 send_snapshot(State) ->
-  Url     = proplists:get_value(trace_url, State#tcstate.runInfo),
-  Fields  = snapshot_fields(State),
-  Data    = list_to_binary(get_current_json(State)),
+  Url                 = proplists:get_value(trace_url, State#tcstate.runInfo),
+  Fields              = snapshot_fields(State),
+  Data                = list_to_binary(get_current_json(State)),
 
-  Request = erlcloud_s3:make_post_http_request(Url, Fields, Data),
+  Request             = erlcloud_s3:make_post_http_request(Url, Fields, Data),
 
   httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]).
 
@@ -606,7 +611,9 @@ path_to_service(Path) ->
 update_process_info(Pid) ->
   update_process_info([Pid], []).
 
-update_process_info([], Acc) ->
+
+
+update_process_info([],        Acc) ->
   Acc;
 
 update_process_info([Pid | T], Acc) ->
