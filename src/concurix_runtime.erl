@@ -8,7 +8,7 @@
 
 -export([update_process_info/1, mod_to_service/1, local_translate_initial_call/1, get_current_json/1]).
 
--record(tcstate, { runInfo, processTable, linkTable, sysProfTable }).
+-include("concurix_runtime.hrl").
 
 start(Filename, Options) ->
   case lists:member(msg_trace, Options) of

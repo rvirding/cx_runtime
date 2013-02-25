@@ -7,10 +7,7 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(tcstate, { runInfo, processTable, linkTable, sysProfTable }).
-
 -define(TIMER_INTERVAL_VIZ,        2 * 1000).    %% Update VIZ every 2 seconds
-
 
 start(State) ->
 
@@ -58,23 +55,13 @@ handle_cast(_Msg, State) ->
   {noreply, State}.
  
 handle_info({websocket_init, WebSocketPid}, State) ->
-    io:format("concurix_send_to_viz:handle_info/2 ~p~n", [WebSocketPid]),
-%%  io:format("  StateOld: ~p~n", [StateOld]),
-
-%%  StateNew = StateOld#tcstate{webSocketPid = WebSocketPid},
-
-%%  io:format("  StateNew: ~p~n", [StateNew]),
+  io:format("concurix_send_to_viz:handle_info/2 ~p~n", [WebSocketPid]),
   {noreply, State};
 
 handle_info(_Info, State) ->
   {noreply, State}.
 
-terminate(_Reason, State) ->
-  dbg:stop_clear(),
-
-  ets:delete(State#tcstate.processTable),
-  ets:delete(State#tcstate.linkTable),
-  ets:delete(State#tcstate.sysProfTable),
+terminate(_Reason, _State) ->
   ok.
  
 code_change(_oldVsn, State, _Extra) ->

@@ -1,0 +1,1 @@
+-record(tcstate, { runInfo, processTable, linkTable, sysProfTable }).

@@ -6,11 +6,11 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(tcstate, { processTable, linkTable }).
+-record(ctbp_state, { processTable, linkTable }).
 
 start(Procs, Links) ->
 
-  State      = #tcstate{processTable = Procs, linkTable = Links},
+  State      = #ctbp_state{processTable = Procs, linkTable = Links},
 
   %% Ensure there isn't any state from a previous run
   dbg:stop_clear(),
@@ -54,23 +54,23 @@ handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
   Service = concurix_runtime:mod_to_service(Mod),
   Key     = {Pid, {Mod, Fun, Arity}, Service, 0},
 
-  ets:insert(State#tcstate.processTable, Key),
+  ets:insert(State#ctbp_state.processTable, Key),
 
   %% also include a link from the creator process to the created.
   update_proc_table(Creator, State),
-  ets:insert(State#tcstate.linkTable, {{Creator, Pid}, 1}),
+  ets:insert(State#ctbp_state.linkTable, {{Creator, Pid}, 1}),
   State;
 
 handle_trace_message({trace, Pid, exit, _Reason}, State) ->
-  ets:safe_fixtable(State#tcstate.processTable, true),
-  ets:safe_fixtable(State#tcstate.linkTable,    true), 
+  ets:safe_fixtable(State#ctbp_state.processTable, true),
+  ets:safe_fixtable(State#ctbp_state.linkTable,    true), 
 
-  ets:select_delete(State#tcstate.linkTable,    [ { {{'_', Pid}, '_'}, [], [true]}, 
+  ets:select_delete(State#ctbp_state.linkTable,    [ { {{'_', Pid}, '_'}, [], [true]}, 
                                                   { {{Pid, '_'}, '_'}, [], [true] } ]),
-  ets:select_delete(State#tcstate.processTable, [ { {Pid, '_', '_', '_'}, [], [true]}]),
+  ets:select_delete(State#ctbp_state.processTable, [ { {Pid, '_', '_', '_'}, [], [true]}]),
 
-  ets:safe_fixtable(State#tcstate.linkTable,    false),  
-  ets:safe_fixtable(State#tcstate.processTable, false), 
+  ets:safe_fixtable(State#ctbp_state.linkTable,    false),  
+  ets:safe_fixtable(State#ctbp_state.processTable, false), 
 
   State;
 
@@ -95,12 +95,12 @@ handle_trace_message({trace, Sender, send, _Data, Recipient}, State) ->
   update_proc_table(Sender,    State),
   update_proc_table(Recipient, State),
 
-  case ets:lookup(State#tcstate.linkTable, {Sender, Recipient}) of
+  case ets:lookup(State#ctbp_state.linkTable, {Sender, Recipient}) of
     [] ->
-      ets:insert(State#tcstate.linkTable, {{Sender, Recipient}, 1});
+      ets:insert(State#ctbp_state.linkTable, {{Sender, Recipient}, 1});
 
     _ ->
-      ets:update_counter(State#tcstate.linkTable, {Sender, Recipient}, 1)
+      ets:update_counter(State#ctbp_state.linkTable, {Sender, Recipient}, 1)
   end, 
 
   State;
@@ -142,23 +142,23 @@ decode_anon_fun(Fun) ->
   {Mod, Str, 0}.
  
 update_proc_table(Pid, State) ->
-  case ets:lookup(State#tcstate.processTable, Pid) of
+  case ets:lookup(State#ctbp_state.processTable, Pid) of
     [] ->
       [{Pid, {Mod, Fun, Arity}, Service}] = concurix_runtime:update_process_info(Pid),
-      ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, 0});
+      ets:insert(State#ctbp_state.processTable, {Pid, {Mod, Fun, Arity}, Service, 0});
 
     _ ->
       ok
   end.
 
 update_proc_scheduler(Pid, Scheduler, State) ->
-  case ets:lookup(State#tcstate.processTable, Pid) of 
+  case ets:lookup(State#ctbp_state.processTable, Pid) of 
     [] ->
       %% we don't have it yet, wait until we get the create message
       ok;
 
     [{Pid, {Mod, Fun, Arity}, Service, _OldScheduler}] ->
-      ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler});
+      ets:insert(State#ctbp_state.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler});
 
     X ->
       io:format("yikes, corrupt proc table ~p ~n", [X])
