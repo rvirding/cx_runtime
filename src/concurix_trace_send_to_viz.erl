@@ -1,4 +1,4 @@
--module(concurix_send_to_viz).
+-module(concurix_trace_send_to_viz).
 
 -behaviour(gen_server).
 

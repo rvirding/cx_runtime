@@ -4,6 +4,8 @@
   {vsn, "0.1"},
   {src_dirs, ["./"]},
   {modules,  [concurix_runtime,
+             
+              concurix_trace_supervisor,
               concurix_trace_by_process,
               concurix_trace_by_scheduler,
 

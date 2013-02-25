@@ -44,7 +44,7 @@ init([Config]) ->
   application:start(ranch),
   application:start(ssl),
 
-  %% Contact concurix.com and obtain Keys to S3
+  %% Contact concurix.com and obtain Keys for S3
   RunInfo = get_run_info(Config),
 
   %% Allocate shared tables
@@ -58,11 +58,9 @@ init([Config]) ->
                      linkTable    = Links,
                      sysProfTable = SysProf},
 
-  concurix_trace_by_process:start(Procs, Links),
-  concurix_trace_by_scheduler:start(SysProf),
+  Sup     = concurix_trace_supervisor:start(State),
 
-  concurix_send_to_viz:start(State),
-  concurix_send_to_S3:start(RunInfo, State),
+%%  io:format("   Supervisor:   ~p~n", [Sup]),
 
   {ok, State}.
  

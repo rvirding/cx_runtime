@@ -1,4 +1,4 @@
--module(concurix_send_to_S3).
+-module(concurix_trace_send_to_S3).
 
 -behaviour(gen_server).
 
