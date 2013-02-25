@@ -2,12 +2,12 @@
 
 -behaviour(gen_server).
 
--export([start/2, stop/0]).
+-export([start/2, stop/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([handle_system_profile/1, send_summary/1, send_snapshot/1]).
 
--record(tcstate, {processTable, linkTable, sysProfTable, timerTable, runInfo, sysProfPid, webSocketPid}).
+-record(tcstate, {runInfo, processTable, linkTable, sysProfTable, timerTable, sysProfPid, webSocketPid}).
 
 -define(TIMER_INTERVAL_VIZ,        2 * 1000).    %% Update VIZ every 2 seconds
 -define(TIMER_INTERVAL_S3,    2 * 60 * 1000).    %% Update S3  every 2 minutes
@@ -20,13 +20,18 @@ start(Filename, Options) ->
 
       {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
 
-      gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []);
+      Server              = gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []),
+
+      io:format("concurix_runtime:start/2   Server is ~p~n", [Server]),
+
+      { ok, Server };
 
     false ->
-      ok
+      { failed }
   end.
 
-stop() ->
+stop(Pid) ->
+  io:format("concurix_runtime:stop/1(~p)~n", [Pid]),
   ok.
 
 %%
@@ -44,6 +49,8 @@ stop() ->
 %%
 
 init([Config]) ->
+  io:format("Starting tracing~n"),
+
   application:start(cowboy),
   application:start(crypto),
   application:start(gproc),
@@ -51,16 +58,122 @@ init([Config]) ->
   application:start(ranch),
   application:start(ssl),
 
+  %%
+  %% Contact concurix.com and obtain Keys to S3
+  %%
+
+  RunInfo    = get_run_info(Config),
+
+  io:format("  RunInfo:   ~p~n", [RunInfo]),
+
+  %%
+  %% These tables are written by the conventional tracer and read by the reporting processes
+  %%
+  
+  Procs      = setup_ets_table(cx_procinfo),
+  Links      = setup_ets_table(cx_linkstats),
+
+  io:format("  Procs:     ~p~n", [Procs]),
+  io:format("  Links:     ~p~n", [Links]),
+
+  %%
+  %% This  table  is  written by Concurix's customized system profiler and read by the reporting processes
+  %%
+  
+  SysProf    = setup_ets_table(cx_sysprof),
+  io:format("  SysProf:   ~p~n", [SysProf]),
+
+
+  %%
+  %% This table is to be deprecated
+  %%
+  Timers     = setup_ets_table(cx_timers),
+  io:format("  Timers:    ~p~n", [Timers]),
+
+
+
+  %%
+  %% This is to become the gen-server that will collect system info and write to the SysProf ETS table
+  %%  
+        
+  SysProfPid = spawn_link(?MODULE, handle_system_profile, [SysProf]),
+  erlang:system_profile(SysProfPid, [concurix]),
+
+
+  State      = #tcstate{runInfo      = RunInfo,
+
+                        processTable = Procs,
+                        linkTable    = Links,
+                        sysProfTable = SysProf,
+
+                        timerTable   = Timers,
+                        
+                        sysProfPid   = SysProfPid,
+                        webSocketPid = undefined},
+
+
+  {ok, T1}   = timer:apply_interval(?TIMER_INTERVAL_VIZ, ?MODULE, send_summary,  [State]),
+
+
+
+  %%
+  %% This is to become the gen-server that will run the standard tracer and write to the Process and Link ETS
+  %%
+
+  %% Ensure there isn't any state from a previous run
+  dbg:stop_clear(),
+  dbg:start(),
+
+  %% now turn on the tracing
+  {ok, Pid}  = dbg:tracer(process, { fun(A, B) -> handle_trace_message(A, B) end, State }),
+  erlang:link(Pid),
+
+  dbg:p(all, [s, p]),
+ 
+  %% this is a workaround for dbg:p not knowing the hidden scheduler_id flag. :-)
+  %% basically we grab the tracer setup in dbg and then add a few more flags
+  T          = erlang:trace_info(self(), tracer),
+
+  erlang:trace(all, true, [procs, send, running, scheduler_id, T]),
+
+
+
+
+  %%
+  %% This is to become the gen-server that will send snapshot information to the RealTime VIZ
+  %%  
+
   %%                                {HostMatch, list({Path, Handler,                       Opts})}
   Dispatch = cowboy_router:compile([{'_',       [    {"/",  concurix_trace_socket_handler, [self()]} ] } ]),
 
   %%                Name, NbAcceptors, TransOpts,      ProtoOpts
   cowboy:start_http(http, 100,         [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
 
-  State    = start_trace_client(Config),
+
+
+  %%
+  %% This is to become the gen-server that will send data to S3
+  %%
+
+  {ok, T2}   = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [State]),
+
+
+  ets:insert(Timers, {realtime_timer, T1}),
+  ets:insert(Timers, {s3_timer,       T2}),
+ 
 
   {ok, State}.
  
+setup_ets_table(T) ->
+  case ets:info(T) of
+    undefined ->
+      ets:new(T, [public]);
+
+    _ -> 
+      ets:delete_all_objects(T), 
+      T
+  end.
+
 handle_call(_Call, _From, State) ->
   {reply, ok, State}.
 
@@ -81,7 +194,7 @@ handle_info(_Info, State) ->
 
 terminate(_Reason, State) ->
   dbg:stop_clear(),
-  cleanup_timers(),
+  cleanup_timers(State),
 
   ets:delete(State#tcstate.processTable),
   ets:delete(State#tcstate.linkTable),
@@ -89,79 +202,20 @@ terminate(_Reason, State) ->
   ets:delete(State#tcstate.timerTable),
   ok.
  
-code_change(_oldVsn, State, _Extra) ->
-  {ok, State}.
- 
- 
-%%
-%% do the real work of starting a run.
-%%
-start_trace_client(Config) ->
-  io:format("Starting tracing~n"),
-
-  %% Ensure there isn't any state from a previous run
-  dbg:stop_clear(),
-  dbg:start(),
-
-  cleanup_timers(),
-
-  Procs      = setup_ets_table(cx_procinfo),
-  Links      = setup_ets_table(cx_linkstats),
-  SysProf    = setup_ets_table(cx_sysprof),
-  Timers     = setup_ets_table(cx_timers),
-
-  RunInfo    = get_run_info(Config),
-
-  SysProfPid = spawn_link(?MODULE, handle_system_profile, [SysProf]),
-  erlang:system_profile(SysProfPid, [concurix]),
-
-  State      = #tcstate{processTable = Procs,
-                        linkTable    = Links,
-                        sysProfTable = SysProf,
-                        timerTable   = Timers,
-                        runInfo      = RunInfo,
-                        sysProfPid   = SysProfPid,
-                        webSocketPid = undefined},
-
-  %% now turn on the tracing
-  {ok, Pid}  = dbg:tracer(process, { fun(A, B) -> handle_trace_message(A, B) end, State }),
-  erlang:link(Pid),
-
-  dbg:p(all, [s, p]),
- 
-  %% this is a workaround for dbg:p not knowing the hidden scheduler_id flag. :-)
-  %% basically we grab the tracer setup in dbg and then add a few more flags
-  T          = erlang:trace_info(self(), tracer),
-
-  erlang:trace(all, true, [procs, send, running, scheduler_id, T]),
-
-  {ok, T1}   = timer:apply_interval(?TIMER_INTERVAL_VIZ, ?MODULE, send_summary,  [State]),
-  {ok, T2}   = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [State]),
-
-  ets:insert(Timers, {realtime_timer, T1}),
-  ets:insert(Timers, {s3_timer,       T2}),
- 
-  State.
- 
-cleanup_timers() ->
-  case ets:info(cx_timers) of
+cleanup_timers(State) ->
+  case ets:info(State#tcstate.timerTable) of
     undefined -> 
       ok;
 
     _ -> 
-     List = ets:tab2list(cx_timers),
+     List = ets:tab2list(State#tcstate.timerTable),
      [ timer:cancel(T) || {_Y, T } <- List]
   end.
 
-setup_ets_table(T) ->
-  case ets:info(T) of
-    undefined ->
-      ets:new(T, [public, named_table]);
-
-    _ -> 
-      ets:delete_all_objects(T), 
-      T
-  end.
+code_change(_oldVsn, State, _Extra) ->
+  {ok, State}.
+ 
+ 
 
 %% Make an http call back to concurix for our run id.
 %% We assume that the synchronous version of httpc works, although
