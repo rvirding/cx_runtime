@@ -5,12 +5,10 @@
 -export([start/2, stop/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([handle_system_profile/1, send_summary/1, send_snapshot/1]).
 
--record(tcstate, {runInfo, processTable, linkTable, sysProfTable, timerTable, sysProfPid, webSocketPid}).
+-export([update_process_info/1, mod_to_service/1, local_translate_initial_call/1, get_current_json/1]).
 
--define(TIMER_INTERVAL_VIZ,        2 * 1000).    %% Update VIZ every 2 seconds
--define(TIMER_INTERVAL_S3,    2 * 60 * 1000).    %% Update S3  every 2 minutes
+-record(tcstate, { runInfo, processTable, linkTable, sysProfTable }).
 
 start(Filename, Options) ->
   case lists:member(msg_trace, Options) of
@@ -22,8 +20,6 @@ start(Filename, Options) ->
 
       Server              = gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []),
 
-      io:format("concurix_runtime:start/2   Server is ~p~n", [Server]),
-
       { ok, Server };
 
     false ->
@@ -33,16 +29,6 @@ start(Filename, Options) ->
 stop(Pid) ->
   io:format("concurix_runtime:stop/1(~p)~n", [Pid]),
   ok.
-
-%%
-%% Children needed to
-%%
-%%   1) Run the standard tracer
-%%   2) Run the system profiler
-%%
-%%   3) Communicate with Browser over an open websocket
-%%   4) Maintain a long running update to S3
-%%
 
 %%
 %% gen_server support
@@ -58,165 +44,28 @@ init([Config]) ->
   application:start(ranch),
   application:start(ssl),
 
-  %%
   %% Contact concurix.com and obtain Keys to S3
-  %%
+  RunInfo = get_run_info(Config),
 
-  RunInfo    = get_run_info(Config),
+  %% Allocate shared tables
+  Procs   = setup_ets_table(cx_procinfo),
+  Links   = setup_ets_table(cx_linkstats),
+  SysProf = setup_ets_table(cx_sysprof),
 
-  io:format("  RunInfo:   ~p~n", [RunInfo]),
+  State   = #tcstate{runInfo      = RunInfo,
 
-  %%
-  %% These tables are written by the conventional tracer and read by the reporting processes
-  %%
-  
-  Procs      = setup_ets_table(cx_procinfo),
-  Links      = setup_ets_table(cx_linkstats),
+                     processTable = Procs,
+                     linkTable    = Links,
+                     sysProfTable = SysProf},
 
-  io:format("  Procs:     ~p~n", [Procs]),
-  io:format("  Links:     ~p~n", [Links]),
+  concurix_trace_by_process:start(Procs, Links),
+  concurix_trace_by_scheduler:start(SysProf),
 
-  %%
-  %% This  table  is  written by Concurix's customized system profiler and read by the reporting processes
-  %%
-  
-  SysProf    = setup_ets_table(cx_sysprof),
-  io:format("  SysProf:   ~p~n", [SysProf]),
-
-
-  %%
-  %% This table is to be deprecated
-  %%
-  Timers     = setup_ets_table(cx_timers),
-  io:format("  Timers:    ~p~n", [Timers]),
-
-
-
-  %%
-  %% This is to become the gen-server that will collect system info and write to the SysProf ETS table
-  %%  
-        
-  SysProfPid = spawn_link(?MODULE, handle_system_profile, [SysProf]),
-  erlang:system_profile(SysProfPid, [concurix]),
-
-
-  State      = #tcstate{runInfo      = RunInfo,
-
-                        processTable = Procs,
-                        linkTable    = Links,
-                        sysProfTable = SysProf,
-
-                        timerTable   = Timers,
-                        
-                        sysProfPid   = SysProfPid,
-                        webSocketPid = undefined},
-
-
-  {ok, T1}   = timer:apply_interval(?TIMER_INTERVAL_VIZ, ?MODULE, send_summary,  [State]),
-
-
-
-  %%
-  %% This is to become the gen-server that will run the standard tracer and write to the Process and Link ETS
-  %%
-
-  %% Ensure there isn't any state from a previous run
-  dbg:stop_clear(),
-  dbg:start(),
-
-  %% now turn on the tracing
-  {ok, Pid}  = dbg:tracer(process, { fun(A, B) -> handle_trace_message(A, B) end, State }),
-  erlang:link(Pid),
-
-  dbg:p(all, [s, p]),
- 
-  %% this is a workaround for dbg:p not knowing the hidden scheduler_id flag. :-)
-  %% basically we grab the tracer setup in dbg and then add a few more flags
-  T          = erlang:trace_info(self(), tracer),
-
-  erlang:trace(all, true, [procs, send, running, scheduler_id, T]),
-
-
-
-
-  %%
-  %% This is to become the gen-server that will send snapshot information to the RealTime VIZ
-  %%  
-
-  %%                                {HostMatch, list({Path, Handler,                       Opts})}
-  Dispatch = cowboy_router:compile([{'_',       [    {"/",  concurix_trace_socket_handler, [self()]} ] } ]),
-
-  %%                Name, NbAcceptors, TransOpts,      ProtoOpts
-  cowboy:start_http(http, 100,         [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
-
-
-
-  %%
-  %% This is to become the gen-server that will send data to S3
-  %%
-
-  {ok, T2}   = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [State]),
-
-
-  ets:insert(Timers, {realtime_timer, T1}),
-  ets:insert(Timers, {s3_timer,       T2}),
- 
+  concurix_send_to_viz:start(State),
+  concurix_send_to_S3:start(RunInfo, State),
 
   {ok, State}.
  
-setup_ets_table(T) ->
-  case ets:info(T) of
-    undefined ->
-      ets:new(T, [public]);
-
-    _ -> 
-      ets:delete_all_objects(T), 
-      T
-  end.
-
-handle_call(_Call, _From, State) ->
-  {reply, ok, State}.
-
-handle_cast(_Msg, State) ->
-  {noreply, State}.
- 
-handle_info({websocket_init, WebSocketPid}, StateOld) ->
-%%  io:format("concurix_runtime:handle_info/2 ~p~n", [WebSocketPid]),
-%%  io:format("  StateOld: ~p~n", [StateOld]),
-
-  StateNew = StateOld#tcstate{webSocketPid = WebSocketPid},
-
-%%  io:format("  StateNew: ~p~n", [StateNew]),
-  {noreply, StateNew};
-
-handle_info(_Info, State) ->
-  {noreply, State}.
-
-terminate(_Reason, State) ->
-  dbg:stop_clear(),
-  cleanup_timers(State),
-
-  ets:delete(State#tcstate.processTable),
-  ets:delete(State#tcstate.linkTable),
-  ets:delete(State#tcstate.sysProfTable),
-  ets:delete(State#tcstate.timerTable),
-  ok.
- 
-cleanup_timers(State) ->
-  case ets:info(State#tcstate.timerTable) of
-    undefined -> 
-      ok;
-
-    _ -> 
-     List = ets:tab2list(State#tcstate.timerTable),
-     [ timer:cancel(T) || {_Y, T } <- List]
-  end.
-
-code_change(_oldVsn, State, _Extra) ->
-  {ok, State}.
- 
- 
-
 %% Make an http call back to concurix for our run id.
 %% We assume that the synchronous version of httpc works, although
 %% we know it has some intermittent problems under chicago boss.
@@ -271,233 +120,39 @@ eval_string(String) ->
   {_Status, Term} = erl_parse:parse_term(Tokens),
   Term.
 
+setup_ets_table(T) ->
+  case ets:info(T) of
+    undefined ->
+      ets:new(T, [public]);
 
-
-%%
-%% The Concurix system profiler
-%%
-%% Each scheduler sends a message at a standard interval, currently every 2 seconds, 
-%% that provides a snapshot of the activity that occured during the most recent interval (window).
-%% 
-%% The Stats element is the tuple
-%%     'concurix',
-%%     number of processes created
-%%     number of quanta executed
-%%     total quanta time (us)
-%%     number of messages send
-%%     number of GCs performed
-%%     number of true calls performed
-%%     number of tail calls performed
-%%     number of returns executed
-%%     number of processes that exited
-%%
-%% The message also indicates the start/end time for the sample
-%%
- 
-handle_system_profile(Proftable) ->
-  receive
-    { profile, concurix, SchedulerId,  SchedulerStats, WindowStart, WindowStop } ->
-      ets:insert(Proftable, {SchedulerId, {SchedulerStats, WindowStart, WindowStop}}),
-      handle_system_profile(Proftable);
-
-    Other ->
-      io:format("OTHER:    ~p~n", [Other]),
-      handle_system_profile(Proftable)
-  end.
- 
-
-
-%%
-%% The standard trace handler
-%%
- 
-%%
-%% Handle process creation and destruction
-%%
-handle_trace_message({trace, Creator, spawn, Pid, Data}, State) ->
-  case Data of 
-    {proc_lib, init_p, _ProcInfo} ->
-      {Mod, Fun, Arity} = local_translate_initial_call(Pid),
-      ok;
-
-    {erlang, apply, [TempFun, _Args]} ->
-      {Mod, Fun, Arity} = decode_anon_fun(TempFun);
-
-    {Mod, Fun, Args} ->
-      Arity = length(Args),
-      ok;
-
-    X ->
-      %%io:format("got unknown spawn of ~p ~n", [X]),
-      Mod   = unknown,
-      Fun   = X,
-      Arity = 0
-  end,
-
-  Service = mod_to_service(Mod),
-  Key     = {Pid, {Mod, Fun, Arity}, Service, 0},
-
-  ets:insert(State#tcstate.processTable, Key),
-
-  %% also include a link from the creator process to the created.
-  update_proc_table(Creator, State),
-  ets:insert(State#tcstate.linkTable, {{Creator, Pid}, 1}),
-  State;
-
-handle_trace_message({trace, Pid, exit, _Reason}, State) ->
-  ets:safe_fixtable(State#tcstate.processTable, true),
-  ets:safe_fixtable(State#tcstate.linkTable,    true), 
-
-  ets:select_delete(State#tcstate.linkTable,    [ { {{'_', Pid}, '_'}, [], [true]}, 
-                                                  { {{Pid, '_'}, '_'}, [], [true] } ]),
-  ets:select_delete(State#tcstate.processTable, [ { {Pid, '_', '_', '_'}, [], [true]}]),
-
-  ets:safe_fixtable(State#tcstate.linkTable,    false),  
-  ets:safe_fixtable(State#tcstate.processTable, false), 
-
-  State;
-
-
-%%
-%% These messages are sent when a Process is started/stopped on a given scheduler
-%%
-
-handle_trace_message({trace, Pid, in,  Scheduler, _MFA}, State) ->
-  update_proc_scheduler(Pid, Scheduler, State),
-  State;
-
-handle_trace_message({trace, Pid, out, Scheduler, _MFA}, State) ->
-  update_proc_scheduler(Pid, Scheduler, State),
-  State;
-
-
-%%
-%% Track messages sent
-%%
-handle_trace_message({trace, Sender, send, _Data, Recipient}, State) ->
-  update_proc_table(Sender,    State),
-  update_proc_table(Recipient, State),
-
-  case ets:lookup(State#tcstate.linkTable, {Sender, Recipient}) of
-    [] ->
-      ets:insert(State#tcstate.linkTable, {{Sender, Recipient}, 1});
-
-    _ ->
-      ets:update_counter(State#tcstate.linkTable, {Sender, Recipient}, 1)
-  end, 
-
-  State;
-
-
-%%
-%% These messages are ignored
-%%
-handle_trace_message({trace, _Pid, getting_linked,   _Pid2}, State) ->
-  State;
-
-handle_trace_message({trace, _Pid, getting_unlinked, _Pid2}, State) ->
-  State;
-
-handle_trace_message({trace, _Pid, link,             _Pid2}, State) ->
-  State;
-
-handle_trace_message({trace, _Pid, unlink,           _Pid2}, State) ->
-  State;
-
-handle_trace_message({trace, _Pid, register,         _Srv},  State) ->
-  State;
-
-handle_trace_message(Msg,                                    State) ->
-  io:format("~p:handle_trace_message/2.  Unsupported msg = ~p ~n", [?MODULE, Msg]),
-  State.
-
-decode_anon_fun(Fun) ->
-  Str = lists:flatten(io_lib:format("~p", [Fun])),
-
-  case string:tokens(Str, "<") of
-    ["#Fun", Name] ->
-      [Mod | _] = string:tokens(Name, ".");
-
-    _ ->
-      Mod = "anon_function"
-  end,
-
-  {Mod, Str, 0}.
- 
-update_proc_table(Pid, State) ->
-  case ets:lookup(State#tcstate.processTable, Pid) of
-    [] ->
-      [{Pid, {Mod, Fun, Arity}, Service}] = update_process_info(Pid),
-      ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, 0});
-
-    _ ->
-      ok
+    _ -> 
+      ets:delete_all_objects(T), 
+      T
   end.
 
-update_proc_scheduler(Pid, Scheduler, State) ->
-  case ets:lookup(State#tcstate.processTable, Pid) of 
-    [] ->
-      %% we don't have it yet, wait until we get the create message
-      ok;
+handle_call(_Call, _From, State) ->
+  {reply, ok, State}.
 
-    [{Pid, {Mod, Fun, Arity}, Service, _OldScheduler}] ->
-      ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler});
+handle_cast(_Msg, State) ->
+  {noreply, State}.
+ 
+handle_info({websocket_init, WebSocketPid}, State) ->
+  io:format("concurix_runtime:handle_info/2 ~p~n", [WebSocketPid]),
+  {noreply, State};
 
-    X ->
-      io:format("yikes, corrupt proc table ~p ~n", [X])
-  end.
+handle_info(_Info, State) ->
+  {noreply, State}.
 
-
-%%
-%%
-%% 
-
-send_summary(State)->
-%%  io:format("concurix_runtime:send_summary/1~n"),
-
-  case gproc:lookup_pids({p, l, "benchrun_tracing"}) of
-    [] ->
-      ok;
-
-    [Pid] ->
-%%    io:format("  PID:   ~p~n", [Pid]),
-%%    io:format("  Sock:  ~p~n", [State#tcstate.webSocketPid]),
-      Pid ! { trace, get_current_json(State) };
-
-    _  ->
-      ok
-  end.
-
-%%
-%%
-%% 
-
-send_snapshot(State) ->
-  Url                 = proplists:get_value(trace_url, State#tcstate.runInfo),
-  Fields              = snapshot_fields(State),
-  Data                = list_to_binary(get_current_json(State)),
-
-  Request             = erlcloud_s3:make_post_http_request(Url, Fields, Data),
-
-  httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]).
-
-snapshot_fields(State) ->
-  Run_id              = proplists:get_value(run_id, State#tcstate.runInfo),
-  Fields              = proplists:get_value(fields, State#tcstate.runInfo),
-
-  {Mega, Secs, Micro} = now(),
-  KeyString           = io_lib:format("json_realtime_trace_snapshot.~p.~p-~p-~p",[node(), Mega, Secs, Micro]),
-  Key                 = lists:flatten(KeyString),
-
-  case proplists:is_defined(key, Fields) of
-    true  ->
-      Temp = proplists:delete(key, Fields);
-
-    false -> 
-      Temp = Fields
-  end,
-
-  Temp ++ [{key, Run_id ++ "/" ++ Key}].
+terminate(_Reason, State) ->
+  ets:delete(State#tcstate.processTable),
+  ets:delete(State#tcstate.linkTable),
+  ets:delete(State#tcstate.sysProfTable),
+  ok.
+ 
+code_change(_oldVsn, State, _Extra) ->
+  {ok, State}.
+ 
+ 
 
 %%
 %%
@@ -664,8 +319,6 @@ path_to_service(Path) ->
 
 update_process_info(Pid) ->
   update_process_info([Pid], []).
-
-
 
 update_process_info([],        Acc) ->
   Acc;
