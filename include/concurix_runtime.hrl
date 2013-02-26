@@ -1,1 +1,1 @@
--record(tcstate, { runInfo, processTable, linkTable, sysProfTable }).
+-record(tcstate, { runInfo, processTable, linkTable, sysProfTable, traceSupervisor }).

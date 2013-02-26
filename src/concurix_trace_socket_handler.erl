@@ -17,9 +17,9 @@ handle(_Req, State) ->
 terminate(_Reason, _Req, _State) ->
   ok.
 
-websocket_init(tcp, Req, [Owner]) ->
+websocket_init(tcp, Req, [_Owner]) ->
   gproc:reg({p, l, "benchrun_tracing"}),
-  Owner ! {websocket_init, self() },
+%%  Owner ! {websocket_init, self() },
   {ok, Req, undefined}.
 
 websocket_handle({text, Msg}, Req, State) ->
@@ -29,7 +29,6 @@ websocket_handle(_Any, Req, State) ->
   {ok, Req, State}.
 
 websocket_info({trace, Data}, Req, State) ->
-%%  io:format("  websocket sending~n~n"),
   {reply, {text, list_to_binary(Data)}, Req, State, hibernate};
 
 websocket_info(_Info, Req, State) ->

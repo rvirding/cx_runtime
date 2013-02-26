@@ -2,15 +2,40 @@
 
 -behaviour(gen_server).
 
--export([start/2]).
+-export([start_link/2]).
 -export([send_snapshot/2]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -define(TIMER_INTERVAL_S3, 2 * 60 * 1000).    %% Update S3  every 2 minutes
 
-start(RunInfo, State) ->
-  {ok, _T2}  = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [RunInfo, State]).
+start_link(RunInfo, State) ->
+  gen_server:start_link(?MODULE, [RunInfo, State], []).
+
+%%
+%% gen_server support
+%%
+
+init([RunInfo, State]) ->
+%%  io:format("concurix_trace_send_to_S3:init/1                         ~p~n", [self()]),
+
+  {ok, _T2}  = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [RunInfo, State]),
+  {ok, undefined}.
+
+handle_call(_Call, _From, State) ->
+  {reply, ok, State}.
+
+handle_cast(_Msg, State) ->
+  {noreply, State}.
+ 
+handle_info(_Info, State) ->
+  {noreply, State}.
+
+terminate(_Reason, _State) ->
+  ok.
+ 
+code_change(_oldVsn, State, _Extra) ->
+  {ok, State}.
 
 send_snapshot(RunInfo, State) ->
   Url                 = proplists:get_value(trace_url, RunInfo),
@@ -40,24 +65,12 @@ snapshot_fields(RunInfo) ->
 
   Temp ++ [{key, Run_id ++ "/" ++ Key}].
 
-%%
-%% gen_server support
-%%
 
-init([_Config]) ->
-  {ok, undefined}.
- 
-handle_call(_Call, _From, State) ->
-  {reply, ok, State}.
 
-handle_cast(_Msg, State) ->
-  {noreply, State}.
- 
-handle_info(_Info, State) ->
-  {noreply, State}.
 
-terminate(_Reason, _State) ->
-  ok.
+
+
+
+
+
  
-code_change(_oldVsn, State, _Extra) ->
-  {ok, State}.

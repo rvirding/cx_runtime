@@ -18,16 +18,14 @@ start(Filename, Options) ->
 
       {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
 
-      Server              = gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []),
-
-      { ok, Server };
+      gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []);
 
     false ->
       { failed }
   end.
 
-stop(Pid) ->
-  io:format("concurix_runtime:stop/1(~p)~n", [Pid]),
+stop(_Pid) ->
+%%  io:format("concurix_runtime:stop/1(~p)~n", [Pid]),
   ok.
 
 %%
@@ -35,6 +33,8 @@ stop(Pid) ->
 %%
 
 init([Config]) ->
+%%  io:format("concurix_runtime:init/1                                  ~p~n", [self()]),
+
   io:format("Starting tracing~n"),
 
   application:start(cowboy),
@@ -45,24 +45,23 @@ init([Config]) ->
   application:start(ssl),
 
   %% Contact concurix.com and obtain Keys for S3
-  RunInfo = get_run_info(Config),
+  RunInfo    = get_run_info(Config),
 
   %% Allocate shared tables
-  Procs   = setup_ets_table(cx_procinfo),
-  Links   = setup_ets_table(cx_linkstats),
-  SysProf = setup_ets_table(cx_sysprof),
+  Procs      = setup_ets_table(cx_procinfo),
+  Links      = setup_ets_table(cx_linkstats),
+  SysProf    = setup_ets_table(cx_sysprof),
 
-  State   = #tcstate{runInfo      = RunInfo,
+  State      = #tcstate{runInfo         = RunInfo,
 
-                     processTable = Procs,
-                     linkTable    = Links,
-                     sysProfTable = SysProf},
+                        processTable    = Procs,
+                        linkTable       = Links,
+                        sysProfTable    = SysProf,
+                        traceSupervisor = undefined},
 
-  Sup     = concurix_trace_supervisor:start(State),
+  {ok, Sup } = concurix_trace_supervisor:start(State),
 
-%%  io:format("   Supervisor:   ~p~n", [Sup]),
-
-  {ok, State}.
+  {ok, State#tcstate{traceSupervisor = Sup}}.
  
 %% Make an http call back to concurix for our run id.
 %% We assume that the synchronous version of httpc works, although

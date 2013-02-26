@@ -7,18 +7,24 @@
 -include("concurix_runtime.hrl").
 
 start(State) ->
-
-  concurix_trace_by_process:start(State#tcstate.processTable, State#tcstate.linkTable),
-  concurix_trace_by_scheduler:start(State#tcstate.sysProfTable),
-
-  concurix_trace_send_to_viz:start(State),
-  concurix_trace_send_to_S3:start(State#tcstate.runInfo, State),
-
-  ok.
+  supervisor:start_link(?MODULE, [State]).
 
 stop(_State) ->
   ok.
 
-init([_Config]) ->
-  {ok, undefined}.
- 
+init([State]) ->
+%%  io:format("concurix_trace_supervisor:init/1                         ~p~n", [self()]),
+
+  RunInfo   = State#tcstate.runInfo,
+  ProcTable = State#tcstate.processTable,
+  LinkTable = State#tcstate.linkTable,
+  ProfTable = State#tcstate.sysProfTable,
+
+  Children  = [
+                {proc, {concurix_trace_by_process,   start_link, [ProcTable, LinkTable]}, permanent, brutal_kill, worker, [concurix_trace_by_process]},
+                {prof, {concurix_trace_by_scheduler, start_link, [ProfTable]},            permanent, brutal_kill, worker, [concurix_trace_by_scheduler]},
+                {viz,  {concurix_trace_send_to_viz,  start_link, [State]},                permanent, brutal_kill, worker, [concurix_trace_send_to_viz]},
+                {s3,   {concurix_trace_send_to_S3,   start_link, [RunInfo, State]},       permanent, brutal_kill, worker, [concurix_trace_send_to_S3]}
+              ],
+
+  {ok, {{one_for_one, 1, 60}, Children}}.

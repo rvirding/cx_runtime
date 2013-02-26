@@ -2,19 +2,36 @@
 
 -behaviour(gen_server).
 
--export([start/1]).
+-export([start_link/1]).
 -export([handle_system_profile/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
-start(SysProfTable) ->
-  %%
-  %% This is to become the gen-server that will collect system info and write to the SysProf ETS table
-  %%  
-        
-  SysProfPid = spawn_link(?MODULE, handle_system_profile, [SysProfTable]),
-  erlang:system_profile(SysProfPid, [concurix]).
+start_link(SysProfTable) ->
+  gen_server:start_link(?MODULE, [SysProfTable], []).
 
+init([SysProfTable]) ->
+%%  io:format("concurix_trace_by_scheduler:init/1                       ~p~n", [self()]),
+
+  SysProfPid = spawn_link(?MODULE, handle_system_profile, [SysProfTable]),
+  erlang:system_profile(SysProfPid, [concurix]),
+
+  {ok, undefined}.
+
+handle_call(_Call, _From, State) ->
+  {reply, ok, State}.
+
+handle_cast(_Msg, State) ->
+  {noreply, State}.
+ 
+handle_info(_Info, State) ->
+  {noreply, State}.
+
+terminate(_Reason, _State) ->
+  ok.
+ 
+code_change(_oldVsn, State, _Extra) ->
+  {ok, State}.
 
 %%
 %% The Concurix system profiler
@@ -49,24 +66,3 @@ handle_system_profile(SysProfTable) ->
   end.
  
 
-%%
-%% gen_server support
-%%
-
-init([_Config]) ->
-  ok.
-
-handle_call(_Call, _From, State) ->
-  {reply, ok, State}.
-
-handle_cast(_Msg, State) ->
-  {noreply, State}.
- 
-handle_info(_Info, State) ->
-  {noreply, State}.
-
-terminate(_Reason, _State) ->
-  ok.
- 
-code_change(_oldVsn, State, _Extra) ->
-  {ok, State}.

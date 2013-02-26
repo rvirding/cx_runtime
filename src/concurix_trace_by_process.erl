@@ -2,13 +2,21 @@
 
 -behaviour(gen_server).
 
--export([start/2]).
+-export([start_link/2]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(ctbp_state, { processTable, linkTable }).
 
-start(Procs, Links) ->
+start_link(Procs, Links) ->
+  gen_server:start_link(?MODULE, [Procs, Links], []).
+
+%%
+%% gen_server support
+%%
+
+init([Procs, Links]) ->
+%%  io:format("concurix_trace_by_process:init/2                         ~p~n", [self()]),
 
   State      = #ctbp_state{processTable = Procs, linkTable = Links},
 
@@ -26,7 +34,43 @@ start(Procs, Links) ->
   %% basically we grab the tracer setup in dbg and then add a few more flags
   T          = erlang:trace_info(self(), tracer),
 
-  erlang:trace(all, true, [procs, send, running, scheduler_id, T]).
+  erlang:trace(all, true, [procs, send, running, scheduler_id, T]),
+
+  {ok, State}.
+
+handle_call(_Call, _From, State) ->
+  {reply, ok, State}.
+
+handle_cast(_Msg, State) ->
+  {noreply, State}.
+ 
+handle_info(_Info, State) ->
+  {noreply, State}.
+
+terminate(_Reason, _State) ->
+  dbg:stop_clear(),
+  ok.
+ 
+code_change(_oldVsn, State, _Extra) ->
+  {ok, State}.
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 %%
 %% Handle process creation and destruction
@@ -165,26 +209,3 @@ update_proc_scheduler(Pid, Scheduler, State) ->
   end.
 
 
-%%
-%% gen_server support
-%%
-
-init([_Config]) ->
-  io:format("trace_by_process:init/1~n").
-
-handle_call(_Call, _From, State) ->
-  {reply, ok, State}.
-
-handle_cast(_Msg, State) ->
-  {noreply, State}.
- 
-handle_info(_Info, State) ->
-  {noreply, State}.
-
-terminate(_Reason, _State) ->
-  dbg:stop_clear(),
-  ok.
- 
-code_change(_oldVsn, State, _Extra) ->
-  {ok, State}.
- 
