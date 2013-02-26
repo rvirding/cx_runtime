@@ -63,8 +63,8 @@ init([Config]) ->
 
   {ok, State#tcstate{traceSupervisor = Sup}}.
  
-%% Make an http call back to concurix for our run id.
-%% We assume that the synchronous version of httpc works, although
+%% Make an http call back to concurix for a run id.
+%% Assume that the synchronous version of httpc works, although
 %% we know it has some intermittent problems under chicago boss.
 
 %% Here is a representative response
@@ -166,23 +166,23 @@ get_current_json(State) ->
 
   {Procs, Links} = validate_tables(RawProcs, RawLinks, State),
  
+  ets:safe_fixtable(State#tcstate.sysProfTable, false),
   ets:safe_fixtable(State#tcstate.linkTable,    false),  
   ets:safe_fixtable(State#tcstate.processTable, false),
-  ets:safe_fixtable(State#tcstate.sysProfTable, false),
 
-  TempProcs      = [ [{name,     pid_to_b(Pid)}, 
-                      {module,   term_to_b(M)}, 
-                      {function, term_to_b(F)}, 
-                      {arity,    A}, 
+  TempProcs      = [ [{name,            pid_to_b(Pid)}, 
+                      {module,          term_to_b(M)}, 
+                      {function,        term_to_b(F)}, 
+                      {arity,           A}, 
                       local_process_info(Pid, reductions),
                       local_process_info(Pid, total_heap_size),
                       term_to_b({service, Service}),
-                      {scheduler, Scheduler}] || 
+                      {scheduler,       Scheduler}] || 
                       {Pid, {M, F, A}, Service, Scheduler} <- Procs ],
 
-  TempLinks      = [ [{source, pid_to_b(A)}, 
-                      {target, pid_to_b(B)},
-                      {value, C}] || 
+  TempLinks      = [ [{source,          pid_to_b(A)}, 
+                      {target,          pid_to_b(B)},
+                      {value,           C}] || 
                       {{A, B}, C} <- Links],
 
   Schedulers     = [ [{scheduler,       Id}, 
@@ -199,25 +199,71 @@ get_current_json(State) ->
 
   Run_id         = proplists:get_value(run_id, State#tcstate.runInfo),
 
-  Send           = [{version,    1},
-                    {run_id,     list_to_binary(Run_id)},
-                    {nodes,      TempProcs},
-                    {links,      TempLinks},
-                    {schedulers, Schedulers}],
+  Send           = [{version,           1},
+                    {run_id,            list_to_binary(Run_id)},
+                    {nodes,             TempProcs},
+                    {links,             TempLinks},
+                    {schedulers,        Schedulers}],
  
   lists:flatten(mochijson2:encode([{data, Send}])).
 
+
+
+
 validate_tables(Procs, Links, _State) ->
-  Val         = lists:flatten([[A, B] || {{A, B}, _} <- Links]),
-  Tempprocs   = lists:usort([ A || {A, _, _, _} <-Procs ]),
+  Val         = lists:flatten([[A, B] || {{A, B}, _}  <- Links]),
+  Tempprocs   = lists:usort  ([ A     || {A, _, _, _} <- Procs]),
   Templinks   = lists:usort(Val),
   Updateprocs = Templinks -- Tempprocs, 
  
   NewProcs    = update_process_info(Updateprocs, []),
   {Procs ++ NewProcs, Links}. 
 
+update_process_info(Pid) ->
+  update_process_info([Pid], []).
+
+update_process_info([],        Acc) ->
+  Acc;
+
+update_process_info([Pid | T], Acc) ->
+  case local_process_info(Pid, initial_call) of
+    {initial_call, MFA} ->
+      case MFA of 
+        {proc_lib, init_p, _} ->
+          {Mod, Fun, Arity} = local_translate_initial_call(Pid);
+
+        {erlang, apply, _} ->
+          %% we lost the original MFA, take a best guess from the current function
+          case local_process_info(Pid, current_function) of
+            {current_function, {Mod, Fun, Arity}} -> 
+              ok;
+
+            _ -> 
+              %%("got unknown current function results of ~p ~n", [X]),
+              {Mod, Fun, Arity} = {erlang, apply, 0}
+          end;
+
+        {Mod, Fun, Arity} ->
+          ok
+      end;
+
+    _ ->
+      Mod   = unknown,
+      Fun   = Pid,
+      Arity = 0
+  end,
+
+  Service = mod_to_service(Mod),
+  NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service}],
+
+  update_process_info(T, NewAcc).
+  
+
+
 pid_to_b(Pid) ->
   list_to_binary(lists:flatten(io_lib:format("~p", [Pid]))).
+
+
 
 term_to_b({Key, Value}) ->
   {Key, term_to_b(Value)};
@@ -233,6 +279,9 @@ term_to_b(Val) when is_list(Val) ->
 term_to_b(Term) ->
   list_to_binary(lists:flatten(io_lib:format("~p", [Term]))).
   
+
+
+
 %%
 %%
 %%
@@ -293,70 +342,6 @@ local_process_info({Pid, _X}, Key)     ->
 %%
 %%
 
-path_to_service(preloaded) ->
-  preloaded;
-
-path_to_service(Path) ->
-  Tokens = string:tokens(Path, "/"),
-
-  case lists:reverse(Tokens) of 
-    [_, "ebin", Service | _] ->
-      Service;
-
-    [Service | _] ->
-      Service;
-
-    _ ->
-      Path
-  end.
-
-%%
-%%
-%%
-
-update_process_info(Pid) ->
-  update_process_info([Pid], []).
-
-update_process_info([],        Acc) ->
-  Acc;
-
-update_process_info([Pid | T], Acc) ->
-  case local_process_info(Pid, initial_call) of
-    {initial_call, MFA} ->
-      case MFA of 
-        {proc_lib, init_p, _} ->
-          {Mod, Fun, Arity} = local_translate_initial_call(Pid);
-
-        {erlang, apply, _} ->
-          %% we lost the original MFA, take a best guess from the current function
-          case local_process_info(Pid, current_function) of
-            {current_function, {Mod, Fun, Arity}} -> 
-              ok;
-
-            _ -> 
-              %%("got unknown current function results of ~p ~n", [X]),
-              {Mod, Fun, Arity} = {erlang, apply, 0}
-          end;
-
-        {Mod, Fun, Arity} ->
-          ok
-      end;
-
-    _ ->
-      Mod   = unknown,
-      Fun   = Pid,
-      Arity = 0
-  end,
-
-  Service = mod_to_service(Mod),
-  NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service}],
-
-  update_process_info(T, NewAcc).
-  
-%%
-%%
-%%
- 
 local_translate_initial_call(Pid) when is_pid(Pid) ->
   proc_lib:translate_initial_call(Pid);
 
@@ -382,4 +367,26 @@ mod_to_service(Mod) ->
     {_, Path} ->
       path_to_service(Path)
   end.
+
+%%
+%%
+%%
+
+path_to_service(preloaded) ->
+  preloaded;
+
+path_to_service(Path) ->
+  Tokens = string:tokens(Path, "/"),
+
+  case lists:reverse(Tokens) of 
+    [_, "ebin", Service | _] ->
+      Service;
+
+    [Service | _] ->
+      Service;
+
+    _ ->
+      Path
+  end.
+
  
