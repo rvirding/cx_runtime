@@ -19,10 +19,6 @@ start_link(State) ->
 %%
 
 init([State]) ->
-%%  io:format("concurix_trace_send_to_S3:init/1                         ~p~n", [self()]),
-
-%%  {ok, _T2}  = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [RunInfo, State]),
-
   timer:send_after(?TIMER_INTERVAL_S3, send_snapshot),
 
   {ok, State}.
@@ -44,8 +40,6 @@ handle_info(send_snapshot, State) ->
   Request             = erlcloud_s3:make_post_http_request(Url, Fields, Data),
 
   httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
-
-  io:format("send_to_S3 with RunInfo ~p~n", [RunInfo]),
 
   {noreply, State}.
 
