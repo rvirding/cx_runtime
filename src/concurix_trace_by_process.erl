@@ -14,7 +14,6 @@ start_link(Procs, Links) ->
 init([Procs, Links]) ->
 %%  io:format("concurix_trace_by_process:init/2                         ~p~n", [self()]),
 
-
   %% This gen_server will receive the trace messages (i.e. invoke handle_info/2)
   erlang:trace(all, true, [procs, send, running, scheduler_id]),
 

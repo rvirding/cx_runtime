@@ -43,6 +43,7 @@ init([Config]) ->
   application:start(inets),
   application:start(ranch),
   application:start(ssl),
+  application:start(timer),
 
   %% Contact concurix.com and obtain Keys for S3
   RunInfo    = get_run_info(Config),

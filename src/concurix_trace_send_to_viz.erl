@@ -3,7 +3,6 @@
 -behaviour(gen_server).
 
 -export([start_link/1]).
--export([send_summary/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -21,9 +20,9 @@ init([State]) ->
   %%                Name, NbAcceptors, TransOpts,      ProtoOpts
   cowboy:start_http(http, 10,          [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
 
-  {ok, _T1}  = timer:apply_interval(?TIMER_INTERVAL_VIZ, ?MODULE, send_summary,  [State]),
+  timer:send_after(?TIMER_INTERVAL_VIZ, send_to_viz),
 
-  {ok, undefined}.
+  {ok, State}.
  
 handle_call(_Call, _From, State) ->
   {reply, ok, State}.
@@ -32,24 +31,11 @@ handle_cast(_Msg, State) ->
   {noreply, State}.
  
 handle_info({websocket_init, WebSocketPid}, State) ->
-  io:format("concurix_send_to_viz:handle_info/2 ~p~n", [WebSocketPid]),
+  io:format("concurix_send_to_viz:handle_info/2 websocket_init ~p~n", [WebSocketPid]),
   {noreply, State};
 
-handle_info(_Info, State) ->
-  {noreply, State}.
-
-terminate(_Reason, _State) ->
-  ok.
- 
-code_change(_oldVsn, State, _Extra) ->
-  {ok, State}.
-
-%%
-%%
-%% 
-
-send_summary(State)->
-%%  io:format("concurix_runtime:send_summary/1~n"),
+handle_info(send_to_viz, State) ->
+  timer:send_after(?TIMER_INTERVAL_VIZ, send_to_viz),
 
   case gproc:lookup_pids({p, l, "benchrun_tracing"}) of
     [] ->
@@ -58,4 +44,16 @@ send_summary(State)->
     _  ->
       Json = concurix_runtime:get_current_json(State),
       gproc:send({p, l, "benchrun_tracing"}, {trace, Json})
-  end.
+  end,
+
+  {noreply, State};
+
+handle_info(Info, State) ->
+  io:format("concurix_send_to_viz:handle_info/2 Unexpected message ~p~n", [Info]),
+  {noreply, State}.
+
+terminate(_Reason, _State) ->
+  ok.
+ 
+code_change(_oldVsn, State, _Extra) ->
+  {ok, State}.

@@ -2,25 +2,30 @@
 
 -behaviour(gen_server).
 
--export([start_link/2]).
--export([send_snapshot/2]).
+-export([start_link/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--define(TIMER_INTERVAL_S3, 2 * 60 * 1000).    %% Update S3  every 2 minutes
+-include("concurix_runtime.hrl").
 
-start_link(RunInfo, State) ->
-  gen_server:start_link(?MODULE, [RunInfo, State], []).
+%% -define(TIMER_INTERVAL_S3, 2 * 60 * 1000).    %% Update S3  every 2 minutes
+-define(TIMER_INTERVAL_S3, 2 * 1000).    %% Update S3  every 2 seconds
+
+start_link(State) ->
+  gen_server:start_link(?MODULE, [State], []).
 
 %%
 %% gen_server support
 %%
 
-init([RunInfo, State]) ->
+init([State]) ->
 %%  io:format("concurix_trace_send_to_S3:init/1                         ~p~n", [self()]),
 
-  {ok, _T2}  = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [RunInfo, State]),
-  {ok, undefined}.
+%%  {ok, _T2}  = timer:apply_interval(?TIMER_INTERVAL_S3,  ?MODULE, send_snapshot, [RunInfo, State]),
+
+  timer:send_after(?TIMER_INTERVAL_S3, send_snapshot),
+
+  {ok, State}.
 
 handle_call(_Call, _From, State) ->
   {reply, ok, State}.
@@ -28,16 +33,9 @@ handle_call(_Call, _From, State) ->
 handle_cast(_Msg, State) ->
   {noreply, State}.
  
-handle_info(_Info, State) ->
-  {noreply, State}.
-
-terminate(_Reason, _State) ->
-  ok.
- 
-code_change(_oldVsn, State, _Extra) ->
-  {ok, State}.
-
-send_snapshot(RunInfo, State) ->
+handle_info(send_snapshot, State) ->
+  timer:send_after(?TIMER_INTERVAL_S3, send_snapshot),
+  RunInfo             = State#tcstate.runInfo,
   Url                 = proplists:get_value(trace_url, RunInfo),
   Fields              = snapshot_fields(RunInfo),
   Json                = concurix_runtime:get_current_json(State),
@@ -45,7 +43,11 @@ send_snapshot(RunInfo, State) ->
 
   Request             = erlcloud_s3:make_post_http_request(Url, Fields, Data),
 
-  httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]).
+  httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
+
+  io:format("send_to_S3 with RunInfo ~p~n", [RunInfo]),
+
+  {noreply, State}.
 
 snapshot_fields(RunInfo) ->
   Run_id              = proplists:get_value(run_id, RunInfo),
@@ -64,13 +66,10 @@ snapshot_fields(RunInfo) ->
   end,
 
   Temp ++ [{key, Run_id ++ "/" ++ Key}].
-
-
-
-
-
-
-
-
-
  
+terminate(_Reason, _State) ->
+  ok.
+ 
+code_change(_oldVsn, State, _Extra) ->
+  {ok, State}.
+
