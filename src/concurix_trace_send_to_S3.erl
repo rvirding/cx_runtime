@@ -8,7 +8,6 @@
 
 -include("concurix_runtime.hrl").
 
-%% -define(TIMER_INTERVAL_S3, 2 * 60 * 1000).    %% Update S3  every 2 minutes
 -define(TIMER_INTERVAL_S3, 2 * 1000).    %% Update S3  every 2 seconds
 
 start_link(State) ->
@@ -30,7 +29,14 @@ handle_cast(_Msg, State) ->
   {noreply, State}.
  
 handle_info(send_snapshot, State) ->
-  timer:send_after(?TIMER_INTERVAL_S3, send_snapshot),
+  if 
+    (State#tcstate.sendUpdates == true) ->
+      timer:send_after(?TIMER_INTERVAL_S3, send_snapshot);
+
+    true ->
+      ok
+  end,
+
   RunInfo             = State#tcstate.runInfo,
   Url                 = proplists:get_value(trace_url, RunInfo),
   Fields              = snapshot_fields(RunInfo),
@@ -41,6 +47,13 @@ handle_info(send_snapshot, State) ->
 
   httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
 
+  {noreply, State};
+
+handle_info(stop_updating,                           State) ->
+  {noreply, State#tcstate{sendUpdates = false}};
+
+handle_info(Msg, State) ->
+  io:format("~p:handle_info/2 Unexpected message ~p~n", [?MODULE, Msg]),
   {noreply, State}.
 
 snapshot_fields(RunInfo) ->
@@ -48,7 +61,8 @@ snapshot_fields(RunInfo) ->
   Fields              = proplists:get_value(fields, RunInfo),
 
   {Mega, Secs, Micro} = now(),
-  KeyString           = io_lib:format("json_realtime_trace_snapshot.~p.~p-~p-~p",[node(), Mega, Secs, Micro]),
+
+  KeyString           = io_lib:format("json_realtime_trace_snapshot.~p.~p-~6..0w.~6..0w",[node(), Mega, Secs, Micro]),
   Key                 = lists:flatten(KeyString),
 
   case proplists:is_defined(key, Fields) of

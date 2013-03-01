@@ -12,8 +12,6 @@ start_link(Procs, Links) ->
   gen_server:start_link(?MODULE, [Procs, Links], []).
 
 init([Procs, Links]) ->
-%%  io:format("concurix_trace_by_process:init/2                         ~p~n", [self()]),
-
   %% This gen_server will receive the trace messages (i.e. invoke handle_info/2)
   erlang:trace(all, true, [procs, send, running, scheduler_id]),
 
@@ -26,7 +24,6 @@ handle_cast(_Msg, State) ->
   {noreply, State}.
  
 terminate(_Reason, _State) ->
-  dbg:stop_clear(),
   ok.
  
 code_change(_oldVsn, State, _Extra) ->
@@ -72,7 +69,7 @@ handle_info({trace, Pid, exit, _Reason}, State) ->
   ets:safe_fixtable(State#ctbp_state.linkTable,    true), 
 
   ets:select_delete(State#ctbp_state.linkTable,    [ { {{'_', Pid}, '_'}, [], [true]}, 
-                                                  { {{Pid, '_'}, '_'}, [], [true] } ]),
+                                                     { {{Pid, '_'}, '_'}, [], [true] } ]),
   ets:select_delete(State#ctbp_state.processTable, [ { {Pid, '_', '_', '_'}, [], [true]}]),
 
   ets:safe_fixtable(State#ctbp_state.linkTable,    false),  
@@ -128,6 +125,10 @@ handle_info({trace, _Pid, unlink,           _Pid2}, State) ->
   {noreply, State};
 
 handle_info({trace, _Pid, register,         _Srv},  State) ->
+  {noreply, State};
+
+handle_info(stop_tracing,                           State) ->
+  erlang:trace(all, false, []),
   {noreply, State};
 
 handle_info(Msg,                                    State) ->

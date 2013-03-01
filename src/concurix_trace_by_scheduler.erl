@@ -11,8 +11,6 @@ start_link(SysProfTable) ->
   gen_server:start_link(?MODULE, [SysProfTable], []).
 
 init([SysProfTable]) ->
-%%  io:format("concurix_trace_by_scheduler:init/1                       ~p~n", [self()]),
-
   SysProfPid = spawn_link(?MODULE, handle_system_profile, [SysProfTable]),
   erlang:system_profile(SysProfPid, [concurix]),
 
@@ -24,7 +22,11 @@ handle_call(_Call, _From, State) ->
 handle_cast(_Msg, State) ->
   {noreply, State}.
  
-handle_info(_Info, State) ->
+handle_info(stop_tracing,                           State) ->
+  erlang:system_profile(undefined, [concurix]),
+  {noreply, State};
+
+handle_info(_Msg, State) ->
   {noreply, State}.
 
 terminate(_Reason, _State) ->

@@ -24,8 +24,8 @@ start(Filename, Options) ->
       { failed }
   end.
 
-stop(_Pid) ->
-%%  io:format("concurix_runtime:stop/1(~p)~n", [Pid]),
+stop(Pid) ->
+  Pid ! stop,
   ok.
 
 %%
@@ -33,8 +33,6 @@ stop(_Pid) ->
 %%
 
 init([Config]) ->
-%%  io:format("concurix_runtime:init/1                                  ~p~n", [self()]),
-
   io:format("Starting tracing~n"),
 
   application:start(cowboy),
@@ -45,7 +43,7 @@ init([Config]) ->
   application:start(ssl),
   application:start(timer),
 
-  inets:start(),
+%%  inets:start(),
   ssl:start(),
 
   %% Contact concurix.com and obtain Keys for S3
@@ -61,7 +59,8 @@ init([Config]) ->
                         processTable    = Procs,
                         linkTable       = Links,
                         sysProfTable    = SysProf,
-                        traceSupervisor = undefined},
+                        traceSupervisor = undefined,
+                        sendUpdates     = true},
 
   {ok, Sup } = concurix_trace_supervisor:start(State),
 
@@ -137,11 +136,11 @@ handle_call(_Call, _From, State) ->
 handle_cast(_Msg, State) ->
   {noreply, State}.
  
-handle_info({websocket_init, WebSocketPid}, State) ->
-  io:format("concurix_runtime:handle_info/2 ~p~n", [WebSocketPid]),
+handle_info(stop, State) ->
+  concurix_trace_supervisor:stop(State#tcstate.traceSupervisor),
   {noreply, State};
 
-handle_info(_Info, State) ->
+handle_info(_Msg, State) ->
   {noreply, State}.
 
 terminate(_Reason, State) ->
