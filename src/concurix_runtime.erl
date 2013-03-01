@@ -10,6 +10,10 @@
 
 -include("concurix_runtime.hrl").
 
+%%
+%% MDN 02/28/2013 Question:
+%%     What happens if start is called more than once without matched calls to stop?
+%%
 start(Filename, Options) ->
   case lists:member(msg_trace, Options) of
     true  ->
@@ -24,6 +28,8 @@ start(Filename, Options) ->
       { failed }
   end.
 
+%% This Pid should be a reference to "this" gen_server.
+%% The naked message send will cause ?MODULE:handle_info/2 to be triggered
 stop(Pid) ->
   Pid ! stop,
   ok.
@@ -43,7 +49,6 @@ init([Config]) ->
   application:start(ssl),
   application:start(timer),
 
-%%  inets:start(),
   ssl:start(),
 
   %% Contact concurix.com and obtain Keys for S3
