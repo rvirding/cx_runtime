@@ -62,7 +62,7 @@ snapshot_fields(RunInfo) ->
 
   {Mega, Secs, Micro} = now(),
 
-  KeyString           = io_lib:format("json_realtime_trace_snapshot.~p.~p-~6..0w.~6..0w",[node(), Mega, Secs, Micro]),
+  KeyString           = io_lib:format("json_realtime_trace_snapshot.~p.~p-~6..0w-~6..0w", [node(), Mega, Secs, Micro]),
   Key                 = lists:flatten(KeyString),
 
   case proplists:is_defined(key, Fields) of
