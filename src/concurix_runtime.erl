@@ -191,8 +191,9 @@ get_current_json(State) ->
 
   TempLinks      = [ [{source,          pid_to_b(A)}, 
                       {target,          pid_to_b(B)},
-                      {value,           C}] || 
-                      {{A, B}, C} <- Links],
+                      {value,           C},
+											{words_sent,		  D}] || 
+                      {{A, B}, C, D} <- Links],
 
   Schedulers     = [ [{scheduler,       Id}, 
                       {process_create,  Create}, 
@@ -208,7 +209,7 @@ get_current_json(State) ->
 
   Run_id         = proplists:get_value(run_id, State#tcstate.runInfo),
 
-  Send           = [{version,           1},
+  Send           = [{version,           2},
                     {run_id,            list_to_binary(Run_id)},
                     {nodes,             TempProcs},
                     {links,             TempLinks},
@@ -220,7 +221,7 @@ get_current_json(State) ->
 
 
 validate_tables(Procs, Links, _State) ->
-  Val         = lists:flatten([[A, B] || {{A, B}, _}  <- Links]),
+  Val         = lists:flatten([[A, B] || {{A, B}, _, _}  <- Links]),
   Tempprocs   = lists:usort  ([ A     || {A, _, _, _} <- Procs]),
   Templinks   = lists:usort(Val),
   Updateprocs = Templinks -- Tempprocs, 

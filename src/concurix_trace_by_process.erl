@@ -68,8 +68,8 @@ handle_info({trace, Pid, exit, _Reason}, State) ->
   ets:safe_fixtable(State#ctbp_state.processTable, true),
   ets:safe_fixtable(State#ctbp_state.linkTable,    true), 
 
-  ets:select_delete(State#ctbp_state.linkTable,    [ { {{'_', Pid}, '_'}, [], [true]}, 
-                                                     { {{Pid, '_'}, '_'}, [], [true] } ]),
+  ets:select_delete(State#ctbp_state.linkTable,    [ { {{'_', Pid}, '_', '_'}, [], [true]}, 
+                                                     { {{Pid, '_'}, '_', '_'}, [], [true] } ]),
   ets:select_delete(State#ctbp_state.processTable, [ { {Pid, '_', '_', '_'}, [], [true]}]),
 
   ets:safe_fixtable(State#ctbp_state.linkTable,    false),  
@@ -94,16 +94,18 @@ handle_info({trace, Pid, out, Scheduler, _MFA}, State) ->
 %%
 %% Track messages sent
 %%
-handle_info({trace, Sender, send, _Data, Recipient}, State) ->
+handle_info({trace, Sender, send, Data, Recipient}, State) ->
   update_proc_table(Sender,    State),
   update_proc_table(Recipient, State),
 
+	Size = erts_debug:size(Data),
+	
   case ets:lookup(State#ctbp_state.linkTable, {Sender, Recipient}) of
     [] ->
-      ets:insert(State#ctbp_state.linkTable, {{Sender, Recipient}, 1});
+      ets:insert(State#ctbp_state.linkTable, {{Sender, Recipient}, 1, Size});
 
     _ ->
-      ets:update_counter(State#ctbp_state.linkTable, {Sender, Recipient}, 1)
+      ets:update_counter(State#ctbp_state.linkTable, {Sender, Recipient}, [{2, 1}, {3, Size}])
   end, 
 
   {noreply, State};
