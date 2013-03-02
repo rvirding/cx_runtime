@@ -6,7 +6,7 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([update_process_info/1, mod_to_service/1, local_translate_initial_call/1, get_current_json/1]).
+-export([update_process_info/1, mod_to_service/1, local_translate_initial_call/1, get_current_json/1, mod_to_behaviour/1]).
 
 -include("concurix_runtime.hrl").
 
@@ -186,8 +186,9 @@ get_current_json(State) ->
                       local_process_info(Pid, reductions),
                       local_process_info(Pid, total_heap_size),
                       term_to_b({service, Service}),
-                      {scheduler,       Scheduler}] || 
-                      {Pid, {M, F, A}, Service, Scheduler} <- Procs ],
+                      {scheduler,       Scheduler},
+											{behaviour, 			Behaviour}] || 
+                      {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs ],
 
   TempLinks      = [ [{source,          pid_to_b(A)}, 
                       {target,          pid_to_b(B)},
@@ -218,11 +219,9 @@ get_current_json(State) ->
   lists:flatten(mochijson2:encode([{data, Send}])).
 
 
-
-
 validate_tables(Procs, Links, _State) ->
   Val         = lists:flatten([[A, B] || {{A, B}, _, _}  <- Links]),
-  Tempprocs   = lists:usort  ([ A     || {A, _, _, _} <- Procs]),
+  Tempprocs   = lists:usort  ([ A     || {A, _, _, _, _} <- Procs]),
   Templinks   = lists:usort(Val),
   Updateprocs = Templinks -- Tempprocs, 
  
@@ -264,7 +263,8 @@ update_process_info([Pid | T], Acc) ->
   end,
 
   Service = mod_to_service(Mod),
-  NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service}],
+	Behave  = mod_to_behaviour(Mod),
+  NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service, Behave}],
 
   update_process_info(T, NewAcc).
   
@@ -378,6 +378,35 @@ mod_to_service(Mod) ->
       path_to_service(Path)
   end.
 
+mod_to_behaviour(unknown) ->
+	[<<"undefined">>];
+mod_to_behaviour(port) ->
+	[<<"port">>];
+mod_to_behaviour(Mod) when is_port(Mod) ->
+	[<<"port">>];
+mod_to_behaviour(Mod) when is_list(Mod) ->
+	mod_to_behaviour(list_to_atom(Mod));
+mod_to_behaviour(Mod) ->
+  Behaviour = case Mod of
+      supervisor ->
+          %% Module was already translated to supervisor by proc_lib
+          [supervisor];
+      _ ->
+          %% Look for behavior attribute in module information
+          case lists:keyfind(attributes, 1, Mod:module_info()) of
+              {attributes, AttrList} ->
+                  case lists:keyfind(behaviour, 1, AttrList) of
+                      {behaviour, Behave} ->
+                          Behave;
+                      _ ->
+                          [undefined]
+                  end;
+              _ ->
+                  [undefined]
+          end
+  end,
+	[atom_to_binary(X, latin1) || X <- Behaviour].
+	
 %%
 %%
 %%

@@ -55,13 +55,15 @@ handle_info({trace, Creator, spawn, Pid, Data}, State) ->
   end,
 
   Service = concurix_runtime:mod_to_service(Mod),
-  Key     = {Pid, {Mod, Fun, Arity}, Service, 0},
+  Behaviour = concurix_runtime:mod_to_behaviour(Mod),
+  Key     = {Pid, {Mod, Fun, Arity}, Service, 0, Behaviour},
 
   ets:insert(State#ctbp_state.processTable, Key),
 
   %% also include a link from the creator process to the created.
   update_proc_table(Creator, State),
-  ets:insert(State#ctbp_state.linkTable, {{Creator, Pid}, 1}),
+	%% TODO--should probably remove this once we put in supervisor hierarchy support
+  ets:insert(State#ctbp_state.linkTable, {{Creator, Pid}, 1, 0}),
   {noreply, State};
 
 handle_info({trace, Pid, exit, _Reason}, State) ->
@@ -70,7 +72,7 @@ handle_info({trace, Pid, exit, _Reason}, State) ->
 
   ets:select_delete(State#ctbp_state.linkTable,    [ { {{'_', Pid}, '_', '_'}, [], [true]}, 
                                                      { {{Pid, '_'}, '_', '_'}, [], [true] } ]),
-  ets:select_delete(State#ctbp_state.processTable, [ { {Pid, '_', '_', '_'}, [], [true]}]),
+  ets:select_delete(State#ctbp_state.processTable, [ { {Pid, '_', '_', '_', '_'}, [], [true]}]),
 
   ets:safe_fixtable(State#ctbp_state.linkTable,    false),  
   ets:safe_fixtable(State#ctbp_state.processTable, false), 
@@ -160,8 +162,8 @@ decode_anon_fun(Fun) ->
 update_proc_table(Pid, State) ->
   case ets:lookup(State#ctbp_state.processTable, Pid) of
     [] ->
-      [{Pid, {Mod, Fun, Arity}, Service}] = concurix_runtime:update_process_info(Pid),
-      ets:insert(State#ctbp_state.processTable, {Pid, {Mod, Fun, Arity}, Service, 0});
+      [{Pid, {Mod, Fun, Arity}, Service, Behaviour}] = concurix_runtime:update_process_info(Pid),
+      ets:insert(State#ctbp_state.processTable, {Pid, {Mod, Fun, Arity}, Service, 0, Behaviour});
 
     _ ->
       ok
@@ -173,8 +175,8 @@ update_proc_scheduler(Pid, Scheduler, State) ->
       %% we don't have it yet, wait until we get the create message
       ok;
 
-    [{Pid, {Mod, Fun, Arity}, Service, _OldScheduler}] ->
-      ets:insert(State#ctbp_state.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler});
+    [{Pid, {Mod, Fun, Arity}, Service, _OldScheduler, Behaviour}] ->
+      ets:insert(State#ctbp_state.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
 
     X ->
       io:format("yikes, corrupt proc table ~p ~n", [X])
