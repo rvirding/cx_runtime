@@ -39,8 +39,6 @@ stop(Pid) ->
 %%
 
 init([Config]) ->
-  io:format("Starting tracing~n"),
-
   application:start(cowboy),
   application:start(crypto),
   application:start(gproc),
@@ -53,6 +51,9 @@ init([Config]) ->
 
   %% Contact concurix.com and obtain Keys for S3
   RunInfo    = get_run_info(Config),
+  RunId      = proplists:get_value(run_id, RunInfo),
+
+  io:format("Starting tracing with RunId ~p~n", [RunId]),
 
   %% Allocate shared tables
   Procs      = setup_ets_table(cx_procinfo),
@@ -97,7 +98,7 @@ get_run_info(Config) ->
 
     _ ->
       {Mega, Secs, Micro} = now(), 
-      lists:flatten(io_lib:format("local-~p-~p-~p",[Mega, Secs, Micro]))
+      lists:flatten(io_lib:format("local-~p-~p-~p", [Mega, Secs, Micro]))
   end.
 
 

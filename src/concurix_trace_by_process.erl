@@ -110,6 +110,13 @@ handle_info({trace, Sender, send, _Data, Recipient}, State) ->
 
 
 %%
+%% It's surprising that this is happening in compiled Mandelbrot
+%%
+handle_info({trace, Pid,  send_to_non_existing_process, Msg, To}, State) ->
+  io:format("Surprise. ~p sent ~p to non-existing process ~p~n", [Pid, Msg, To]),
+  {noreply, State};
+
+%%
 %% These messages are ignored
 %%
 handle_info({trace, _Pid, getting_linked,   _Pid2}, State) ->
