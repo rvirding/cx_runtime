@@ -168,8 +168,8 @@ decode_anon_fun(Fun) ->
 update_proc_table(Pid, State) ->
   case ets:lookup(State#ctbp_state.processTable, Pid) of
     [] ->
-      [{Pid, {Mod, Fun, Arity}, Service, Behaviour}] = concurix_runtime:update_process_info(Pid),
-      ets:insert(State#ctbp_state.processTable, {Pid, {Mod, Fun, Arity}, Service, 0, Behaviour});
+      [{Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour}] = concurix_runtime:update_process_info(Pid),
+      ets:insert(State#ctbp_state.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
 
     _ ->
       ok

@@ -72,6 +72,8 @@ init([Config]) ->
 
   {ok, Sup } = concurix_trace_supervisor:start(State),
 
+	fill_initial_tables(State),
+
   {ok, State#tcstate{traceSupervisor = Sup}}.
  
 %% Make an http call back to concurix for a run id.
@@ -275,7 +277,7 @@ update_process_info([Pid | T], Acc) ->
 
   Service = mod_to_service(Mod),
 	Behave  = mod_to_behaviour(Mod),
-  NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service, Behave}],
+  NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service, 0, Behave}],
 
   update_process_info(T, NewAcc).
   
@@ -439,4 +441,35 @@ path_to_service(Path) ->
       Path
   end.
 
- 
+
+%%
+%% on startup, we want to pre-populate our process and link tables with existing information
+%% so that things like the supervision tree are realized properly.
+
+fill_initial_tables(State) ->
+	Processes = processes(),
+	fill_initial_proctable(State#tcstate.processTable, Processes),
+	fill_initial_proclinktable(State#tcstate.procLinkTable, Processes).
+	
+fill_initial_proctable(Table, Processes) ->
+	ProcList = update_process_info(Processes, []),
+	lists:foreach(fun(P) -> ets:insert(Table, P) end, ProcList).
+	
+fill_initial_proclinktable(_Table, []) ->
+	ok;
+fill_initial_proclinktable(Table, [P | Tail]) ->
+	lists:foreach(fun(P2) ->
+		ets:insert(Table, {P, P2})
+		end,
+		get_proc_links(P)
+		),
+	fill_initial_proclinktable(Table, Tail).
+	
+get_proc_links(Proc) ->
+    %% Returns a list of linked processes.
+    case process_info(Proc, links) of
+        {links, Plinks} ->
+            [P || P <- Plinks, is_pid(P)];
+        _ ->
+            []
+    end.
