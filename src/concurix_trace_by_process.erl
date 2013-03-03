@@ -124,21 +124,21 @@ handle_info({trace, Pid,  send_to_non_existing_process, Msg, To}, State) ->
   io:format("Surprise. ~p sent ~p to non-existing process ~p~n", [Pid, Msg, To]),
   {noreply, State};
 
-%%
-%% These messages are ignored
-%%
-handle_info({trace, _Pid, getting_linked,   _Pid2}, State) ->
+
+handle_info({trace, Pid, getting_linked,   Pid2}, State) ->
+	insert_proc_link(State, Pid, Pid2),
   {noreply, State};
 
-handle_info({trace, _Pid, getting_unlinked, _Pid2}, State) ->
+handle_info({trace, Pid, getting_unlinked, Pid2}, State) ->
+	delete_proc_link(State, Pid, Pid2),
   {noreply, State};
 
 handle_info({trace, Pid, link,             Pid2}, State) ->
-	ets:insert(State#ctbp_state.procLinkTable, {Pid, Pid2}),
+	insert_proc_link(State, Pid, Pid2),
   {noreply, State};
 
 handle_info({trace, Pid, unlink,           Pid2}, State) ->
-	ets:delete(State#ctbp_state.procLinkTable, {Pid, Pid2}),
+	delete_proc_link(State, Pid, Pid2),
   {noreply, State};
 
 handle_info({trace, _Pid, register,         _Srv},  State) ->
@@ -188,4 +188,16 @@ update_proc_scheduler(Pid, Scheduler, State) ->
       io:format("yikes, corrupt proc table ~p ~n", [X])
   end.
 
-
+insert_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
+	ets:insert(State#ctbp_state.procLinkTable, {Pid1, Pid2});
+insert_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
+	ets:insert(State#ctbp_state.procLinkTable, {Pid2, Pid1});
+insert_proc_link(_State, _Pid1, _Pid2) ->
+	ok.
+	
+delete_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
+	ets:delete(State#ctbp_state.procLinkTable, {Pid1, Pid2});
+delete_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
+	ets:delete(State#ctbp_state.procLinkTable, {Pid2, Pid1});
+delete_proc_link(_State, _Pid1, _Pid2) ->
+	ok.
