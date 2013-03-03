@@ -2,20 +2,20 @@
 
 -behaviour(gen_server).
 
--export([start_link/2]).
+-export([start_link/3]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(ctbp_state, { processTable, linkTable }).
+-record(ctbp_state, { processTable, linkTable, procLinkTable }).
 
-start_link(Procs, Links) ->
-  gen_server:start_link(?MODULE, [Procs, Links], []).
+start_link(Procs, Links, ProcLinks) ->
+  gen_server:start_link(?MODULE, [Procs, Links, ProcLinks], []).
 
-init([Procs, Links]) ->
+init([Procs, Links, ProcLinks]) ->
   %% This gen_server will receive the trace messages (i.e. invoke handle_info/2)
   erlang:trace(all, true, [procs, send, running, scheduler_id]),
 
-  {ok, #ctbp_state{processTable = Procs, linkTable = Links}}.
+  {ok, #ctbp_state{processTable = Procs, linkTable = Links, procLinkTable = ProcLinks}}.
 
 handle_call(_Call, _From, State) ->
   {reply, ok, State}.
@@ -68,14 +68,18 @@ handle_info({trace, Creator, spawn, Pid, Data}, State) ->
 
 handle_info({trace, Pid, exit, _Reason}, State) ->
   ets:safe_fixtable(State#ctbp_state.processTable, true),
-  ets:safe_fixtable(State#ctbp_state.linkTable,    true), 
+  ets:safe_fixtable(State#ctbp_state.linkTable,    true),
+	ets:safe_fixtable(State#ctbp_state.procLinkTable, true),
 
   ets:select_delete(State#ctbp_state.linkTable,    [ { {{'_', Pid}, '_', '_'}, [], [true]}, 
                                                      { {{Pid, '_'}, '_', '_'}, [], [true] } ]),
   ets:select_delete(State#ctbp_state.processTable, [ { {Pid, '_', '_', '_', '_'}, [], [true]}]),
+  ets:select_delete(State#ctbp_state.procLinkTable,    [ { {'_', Pid}, [], [true]}, 
+                                                     { {Pid, '_'}, [], [true] } ]),
 
   ets:safe_fixtable(State#ctbp_state.linkTable,    false),  
   ets:safe_fixtable(State#ctbp_state.processTable, false), 
+	ets:safe_fixtable(State#ctbp_state.procLinkTable, false),
 
   {noreply, State};
 
@@ -129,10 +133,12 @@ handle_info({trace, _Pid, getting_linked,   _Pid2}, State) ->
 handle_info({trace, _Pid, getting_unlinked, _Pid2}, State) ->
   {noreply, State};
 
-handle_info({trace, _Pid, link,             _Pid2}, State) ->
+handle_info({trace, Pid, link,             Pid2}, State) ->
+	ets:insert(State#ctbp_state.procLinkTable, {Pid, Pid2}),
   {noreply, State};
 
-handle_info({trace, _Pid, unlink,           _Pid2}, State) ->
+handle_info({trace, Pid, unlink,           Pid2}, State) ->
+	ets:delete(State#ctbp_state.procLinkTable, {Pid, Pid2}),
   {noreply, State};
 
 handle_info({trace, _Pid, register,         _Srv},  State) ->

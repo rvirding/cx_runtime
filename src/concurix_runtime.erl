@@ -59,12 +59,14 @@ init([Config]) ->
   Procs      = setup_ets_table(cx_procinfo),
   Links      = setup_ets_table(cx_linkstats),
   SysProf    = setup_ets_table(cx_sysprof),
+	ProcLink	 = setup_ets_table(cx_proclink),
 
   State      = #tcstate{runInfo         = RunInfo,
 
                         processTable    = Procs,
                         linkTable       = Links,
                         sysProfTable    = SysProf,
+												procLinkTable	  = ProcLink,
                         traceSupervisor = undefined,
                         sendUpdates     = true},
 
@@ -153,6 +155,7 @@ terminate(_Reason, State) ->
   ets:delete(State#tcstate.processTable),
   ets:delete(State#tcstate.linkTable),
   ets:delete(State#tcstate.sysProfTable),
+	ets:delete(State#tcstate.procLinkTable),
   ok.
  
 code_change(_oldVsn, State, _Extra) ->
@@ -168,16 +171,19 @@ get_current_json(State) ->
   ets:safe_fixtable(State#tcstate.processTable, true),
   ets:safe_fixtable(State#tcstate.linkTable,    true),
   ets:safe_fixtable(State#tcstate.sysProfTable, true),
+	ets:safe_fixtable(State#tcstate.procLinkTable, true),
 
   RawProcs       = ets:tab2list(State#tcstate.processTable),
   RawLinks       = ets:tab2list(State#tcstate.linkTable),
   RawSys         = ets:tab2list(State#tcstate.sysProfTable),
+	RawProcLink		 = ets:tab2list(State#tcstate.procLinkTable),
 
   {Procs, Links} = validate_tables(RawProcs, RawLinks, State),
  
   ets:safe_fixtable(State#tcstate.sysProfTable, false),
   ets:safe_fixtable(State#tcstate.linkTable,    false),  
   ets:safe_fixtable(State#tcstate.processTable, false),
+	ets:safe_fixtable(State#tcstate.procLinkTable, false),
 
   TempProcs      = [ [{name,            pid_to_b(Pid)}, 
                       {module,          term_to_b(M)}, 
@@ -195,6 +201,10 @@ get_current_json(State) ->
                       {value,           C},
 											{words_sent,		  D}] || 
                       {{A, B}, C, D} <- Links],
+
+  ProcLinks			 = [ [{source,					pid_to_b(A)},
+											{target,					pid_to_b(B)}]
+											|| {A, B} <- RawProcLink],
 
   Schedulers     = [ [{scheduler,       Id}, 
                       {process_create,  Create}, 
@@ -214,6 +224,7 @@ get_current_json(State) ->
                     {run_id,            list_to_binary(Run_id)},
                     {nodes,             TempProcs},
                     {links,             TempLinks},
+										{proclinks,					ProcLinks},
                     {schedulers,        Schedulers}],
  
   lists:flatten(mochijson2:encode([{data, Send}])).
