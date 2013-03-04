@@ -4,7 +4,9 @@
   {vsn, "0.1"},
   {src_dirs, ["./"]},
   {modules,  [concurix_runtime,
-             
+              concurix_runtime_sup,
+			  concurix_runtime_app,
+			
               concurix_trace_supervisor,
               concurix_trace_by_process,
               concurix_trace_by_scheduler,
@@ -17,5 +19,6 @@
   {registered,            []},
   {included_applications, [erlcloud]},
   {applications,          [kernel, stdlib, crypto, ranch, cowboy, gproc]},
-  {env,                   []}
+  {env,                   []},
+  {mod,					  {concurix_runtime_app, []}}
  ]}.

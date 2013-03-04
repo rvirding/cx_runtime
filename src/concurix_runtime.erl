@@ -2,7 +2,7 @@
 
 -behaviour(gen_server).
 
--export([start/2, stop/1]).
+-export([start/2, start_link/1, stop/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -15,6 +15,7 @@
 %%     What happens if start is called more than once without matched calls to stop?
 %%
 start(Filename, Options) ->
+
   case lists:member(msg_trace, Options) of
     true  ->
       {ok, CWD }          = file:get_cwd(),
@@ -22,12 +23,28 @@ start(Filename, Options) ->
 
       {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
 
-      gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []);
+		  application:start(crypto),
+		  application:start(inets),
+		  application:start(ranch),
+		  application:start(cowboy),
+
+		  application:start(gproc),
+		  application:start(ssl),
+		  application:start(timer),
+
+		  ssl:start(),
+		
+			application:set_env(concurix_runtime, config, Config),
+			application:start(concurix_runtime);
 
     false ->
       { failed }
   end.
 
+start_link(Config) ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+
+	
 %% This Pid should be a reference to "this" gen_server.
 %% The naked message send will cause ?MODULE:handle_info/2 to be triggered
 stop(Pid) ->
@@ -39,16 +56,6 @@ stop(Pid) ->
 %%
 
 init([Config]) ->
-  application:start(cowboy),
-  application:start(crypto),
-  application:start(gproc),
-  application:start(inets),
-  application:start(ranch),
-  application:start(ssl),
-  application:start(timer),
-
-  ssl:start(),
-
   %% Contact concurix.com and obtain Keys for S3
   RunInfo    = get_run_info(Config),
   RunId      = proplists:get_value(run_id, RunInfo),
