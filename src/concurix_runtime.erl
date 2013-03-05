@@ -140,7 +140,7 @@ eval_string(String) ->
 setup_ets_table(T) ->
   case ets:info(T) of
     undefined ->
-      ets:new(T, [public]);
+      ets:new(T, [public, named_table]);
 
     _ -> 
       ets:delete_all_objects(T), 
@@ -202,7 +202,8 @@ get_current_json(State) ->
                       local_process_info(Pid, total_heap_size),
                       term_to_b({service, Service}),
                       {scheduler,       Scheduler},
-											{behaviour, 			Behaviour}] || 
+											{behaviour, 			Behaviour},
+											{application, 		pid_to_application(Pid)}] || 
                       {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs ],
 
   TempLinks      = [ [{source,          pid_to_b(A)}, 
@@ -426,6 +427,15 @@ mod_to_behaviour(Mod) ->
           end
   end,
 	[atom_to_binary(X, latin1) || X <- Behaviour].
+	
+pid_to_application(Pid) when is_pid(Pid) ->
+	case application:get_application(Pid) of
+		undefined -> <<"undefined">>;
+		{ok, App} -> atom_to_binary(App, latin1);
+		_X -> <<"undefined">>
+	end;
+pid_to_application(_Pid) ->
+	<<"undefined">>.
 	
 %%
 %%
