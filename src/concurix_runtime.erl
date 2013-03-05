@@ -140,7 +140,7 @@ eval_string(String) ->
 setup_ets_table(T) ->
   case ets:info(T) of
     undefined ->
-      ets:new(T, [public, named_table]);
+      ets:new(T, [public]);
 
     _ -> 
       ets:delete_all_objects(T), 
