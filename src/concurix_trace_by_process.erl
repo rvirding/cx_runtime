@@ -196,8 +196,8 @@ insert_proc_link(_State, _Pid1, _Pid2) ->
 	ok.
 	
 delete_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
-	ets:delete(State#ctbp_state.procLinkTable, {Pid1, Pid2});
+	ets:delete_object(State#ctbp_state.procLinkTable, {Pid1, Pid2});
 delete_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
-	ets:delete(State#ctbp_state.procLinkTable, {Pid2, Pid1});
+	ets:delete_object(State#ctbp_state.procLinkTable, {Pid2, Pid1});
 delete_proc_link(_State, _Pid1, _Pid2) ->
 	ok.
