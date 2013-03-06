@@ -19,7 +19,6 @@ terminate(_Reason, _Req, _State) ->
 
 websocket_init(tcp, Req, [_Owner]) ->
   gproc:reg({p, l, "benchrun_tracing"}),
-%%  Owner ! {websocket_init, self() },
   {ok, Req, undefined}.
 
 websocket_handle({text, Msg}, Req, State) ->

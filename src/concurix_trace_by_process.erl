@@ -2,20 +2,20 @@
 
 -behaviour(gen_server).
 
--export([start_link/3]).
+-export([start_link/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(ctbp_state, { processTable, linkTable, procLinkTable }).
+-include("concurix_runtime.hrl").
 
-start_link(Procs, Links, ProcLinks) ->
-  gen_server:start_link(?MODULE, [Procs, Links, ProcLinks], []).
+start_link(State) ->
+  gen_server:start_link(?MODULE, [State], []).
 
-init([Procs, Links, ProcLinks]) ->
+init([State]) ->
   %% This gen_server will receive the trace messages (i.e. invoke handle_info/2)
   erlang:trace(all, true, [procs, send, running, scheduler_id]),
 
-  {ok, #ctbp_state{processTable = Procs, linkTable = Links, procLinkTable = ProcLinks}}.
+  {ok, State}.
 
 handle_call(_Call, _From, State) ->
   {reply, ok, State}.
@@ -54,32 +54,33 @@ handle_info({trace, Creator, spawn, Pid, Data}, State) ->
       Arity = 0
   end,
 
-  Service = concurix_runtime:mod_to_service(Mod),
+  Service   = concurix_runtime:mod_to_service(Mod),
   Behaviour = concurix_runtime:mod_to_behaviour(Mod),
-  Key     = {Pid, {Mod, Fun, Arity}, Service, 1, Behaviour},
+  Key        = {Pid, {Mod, Fun, Arity}, Service, 1, Behaviour},
 
-  ets:insert(State#ctbp_state.processTable, Key),
+  ets:insert(State#tcstate.processTable, Key),
 
   %% also include a link from the creator process to the created.
   update_proc_table(Creator, State),
-	%% TODO--should probably remove this once we put in supervisor hierarchy support
-  ets:insert(State#ctbp_state.linkTable, {{Creator, Pid}, 1, 0}),
+
+  %% TODO--should probably remove this once we put in supervisor hierarchy support
+  ets:insert(State#tcstate.linkTable, {{Creator, Pid}, 1, 0}),
   {noreply, State};
 
 handle_info({trace, Pid, exit, _Reason}, State) ->
-  ets:safe_fixtable(State#ctbp_state.processTable, true),
-  ets:safe_fixtable(State#ctbp_state.linkTable,    true),
-	ets:safe_fixtable(State#ctbp_state.procLinkTable, true),
+  ets:safe_fixtable(State#tcstate.processTable,   true),
+  ets:safe_fixtable(State#tcstate.linkTable,      true),
+  ets:safe_fixtable(State#tcstate.procLinkTable,  true),
 
-  ets:select_delete(State#ctbp_state.linkTable,    [ { {{'_', Pid}, '_', '_'}, [], [true]}, 
+  ets:select_delete(State#tcstate.linkTable,    [ { {{'_', Pid}, '_', '_'}, [], [true]}, 
                                                      { {{Pid, '_'}, '_', '_'}, [], [true] } ]),
-  ets:select_delete(State#ctbp_state.processTable, [ { {Pid, '_', '_', '_', '_'}, [], [true]}]),
-  ets:select_delete(State#ctbp_state.procLinkTable,    [ { {'_', Pid}, [], [true]}, 
-                                                     { {Pid, '_'}, [], [true] } ]),
+  ets:select_delete(State#tcstate.processTable, [ { {Pid, '_', '_', '_', '_'}, [], [true]}]),
+  ets:select_delete(State#tcstate.procLinkTable,    [ { {'_', Pid}, [], [true]}, 
+                                                      { {Pid, '_'}, [], [true] } ]),
 
-  ets:safe_fixtable(State#ctbp_state.linkTable,    false),  
-  ets:safe_fixtable(State#ctbp_state.processTable, false), 
-	ets:safe_fixtable(State#ctbp_state.procLinkTable, false),
+  ets:safe_fixtable(State#tcstate.linkTable,     false),
+  ets:safe_fixtable(State#tcstate.processTable,  false),
+  ets:safe_fixtable(State#tcstate.procLinkTable, false),
 
   {noreply, State};
 
@@ -104,14 +105,14 @@ handle_info({trace, Sender, send, Data, Recipient}, State) ->
   update_proc_table(Sender,    State),
   update_proc_table(Recipient, State),
 
-	Size = erts_debug:flat_size(Data),
-	
-  case ets:lookup(State#ctbp_state.linkTable, {Sender, Recipient}) of
+  Size = erts_debug:flat_size(Data),
+  
+  case ets:lookup(State#tcstate.linkTable, {Sender, Recipient}) of
     [] ->
-      ets:insert(State#ctbp_state.linkTable, {{Sender, Recipient}, 1, Size});
+      ets:insert(State#tcstate.linkTable, {{Sender, Recipient}, 1, Size});
 
     _ ->
-      ets:update_counter(State#ctbp_state.linkTable, {Sender, Recipient}, [{2, 1}, {3, Size}])
+      ets:update_counter(State#tcstate.linkTable, {Sender, Recipient}, [{2, 1}, {3, Size}])
   end, 
 
   {noreply, State};
@@ -126,19 +127,19 @@ handle_info({trace, Pid,  send_to_non_existing_process, Msg, To}, State) ->
 
 
 handle_info({trace, Pid, getting_linked,   Pid2}, State) ->
-	insert_proc_link(State, Pid, Pid2),
+  insert_proc_link(State, Pid, Pid2),
   {noreply, State};
 
 handle_info({trace, Pid, getting_unlinked, Pid2}, State) ->
-	delete_proc_link(State, Pid, Pid2),
+  delete_proc_link(State, Pid, Pid2),
   {noreply, State};
 
 handle_info({trace, Pid, link,             Pid2}, State) ->
-	insert_proc_link(State, Pid, Pid2),
+  insert_proc_link(State, Pid, Pid2),
   {noreply, State};
 
 handle_info({trace, Pid, unlink,           Pid2}, State) ->
-	delete_proc_link(State, Pid, Pid2),
+  delete_proc_link(State, Pid, Pid2),
   {noreply, State};
 
 handle_info({trace, _Pid, register,         _Srv},  State) ->
@@ -166,38 +167,38 @@ decode_anon_fun(Fun) ->
   {Mod, Str, 0}.
  
 update_proc_table(Pid, State) ->
-  case ets:lookup(State#ctbp_state.processTable, Pid) of
+  case ets:lookup(State#tcstate.processTable, Pid) of
     [] ->
       [{Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour}] = concurix_runtime:update_process_info(Pid),
-      ets:insert(State#ctbp_state.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
+      ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
 
     _ ->
       ok
   end.
 
 update_proc_scheduler(Pid, Scheduler, State) ->
-  case ets:lookup(State#ctbp_state.processTable, Pid) of 
+  case ets:lookup(State#tcstate.processTable, Pid) of 
     [] ->
       %% we don't have it yet, wait until we get the create message
       ok;
 
     [{Pid, {Mod, Fun, Arity}, Service, _OldScheduler, Behaviour}] ->
-      ets:insert(State#ctbp_state.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
+      ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
 
     X ->
       io:format("yikes, corrupt proc table ~p ~n", [X])
   end.
 
 insert_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
-	ets:insert(State#ctbp_state.procLinkTable, {Pid1, Pid2});
+  ets:insert(State#tcstate.procLinkTable, {Pid1, Pid2});
 insert_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
-	ets:insert(State#ctbp_state.procLinkTable, {Pid2, Pid1});
+  ets:insert(State#tcstate.procLinkTable, {Pid2, Pid1});
 insert_proc_link(_State, _Pid1, _Pid2) ->
-	ok.
-	
+  ok.
+  
 delete_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
-	ets:delete_object(State#ctbp_state.procLinkTable, {Pid1, Pid2});
+  ets:delete_object(State#tcstate.procLinkTable, {Pid1, Pid2});
 delete_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
-	ets:delete_object(State#ctbp_state.procLinkTable, {Pid2, Pid1});
+  ets:delete_object(State#tcstate.procLinkTable, {Pid2, Pid1});
 delete_proc_link(_State, _Pid1, _Pid2) ->
-	ok.
+  ok.

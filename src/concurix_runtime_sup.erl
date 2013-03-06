@@ -2,22 +2,17 @@
 
 -behaviour(supervisor).
 
--export([start/1, stop/1, init/1]).
+-export([start_link/0, stop/1, init/1]).
 
--include("concurix_runtime.hrl").
-
-start(Config) ->
-  supervisor:start_link(?MODULE, [Config]).
+start_link() ->
+  supervisor:start_link(?MODULE, []).
 
 stop(_State) ->
   ok.
 
-init([Config]) ->
-
-  Terminate = 2 * 1000,
-
-  Children  = [
-                {cx_runtime, {concurix_runtime,   start_link, [Config]}, permanent, Terminate, worker, [concurix_trace_by_process]}
-              ],
+init([]) ->
+  Children = [
+               {cx_runtime, {concurix_runtime, start_link, []}, permanent, 2000, worker, [concurix_runtime]}
+             ],
 
   {ok, {{one_for_one, 1, 60}, Children}}.

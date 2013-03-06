@@ -48,18 +48,15 @@ stopUpdaters(_Other) ->
 
 
 init([State]) ->
-  ProcTable = State#tcstate.processTable,
-  LinkTable = State#tcstate.linkTable,
   ProfTable = State#tcstate.sysProfTable,
-	ProcLinkTable = State#tcstate.procLinkTable,
 
   Terminate = 2 * 1000,
 
   Children  = [
-                {proc, {concurix_trace_by_process,   start_link, [ProcTable, LinkTable, ProcLinkTable]}, permanent, Terminate, worker, [concurix_trace_by_process]},
-                {prof, {concurix_trace_by_scheduler, start_link, [ProfTable]},            permanent, Terminate, worker, [concurix_trace_by_scheduler]},
-                {viz,  {concurix_trace_send_to_viz,  start_link, [State]},                permanent, Terminate, worker, [concurix_trace_send_to_viz]},
-                {s3,   {concurix_trace_send_to_S3,   start_link, [State]},                permanent, Terminate, worker, [concurix_trace_send_to_S3]}
+                {proc, {concurix_trace_by_process,   start_link, [State]},     permanent, Terminate, worker, [concurix_trace_by_process]},
+                {prof, {concurix_trace_by_scheduler, start_link, [ProfTable]}, permanent, Terminate, worker, [concurix_trace_by_scheduler]},
+                {viz,  {concurix_trace_send_to_viz,  start_link, [State]},     permanent, Terminate, worker, [concurix_trace_send_to_viz]},
+                {s3,   {concurix_trace_send_to_S3,   start_link, [State]},     permanent, Terminate, worker, [concurix_trace_send_to_S3]}
               ],
 
   {ok, {{one_for_one, 1, 60}, Children}}.

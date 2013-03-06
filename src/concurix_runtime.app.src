@@ -1,24 +1,27 @@
 {application, concurix_runtime,
  [
-  {description, "Concurix VM Runtime enhancements"},
-  {vsn, "0.1"},
-  {src_dirs, ["./"]},
-  {modules,  [concurix_runtime,
-              concurix_runtime_sup,
-			  concurix_runtime_app,
-			
-              concurix_trace_supervisor,
-              concurix_trace_by_process,
-              concurix_trace_by_scheduler,
+  {description,           "Concurix Runtime"},
+  {vsn,                   "0.1"},
+  {src_dirs,              ["./"]},
+  {modules,               [
+                            concurix_runtime_app,
+                            concurix_runtime_sup,
+      
+                            concurix_runtime,
 
-              concurix_send_to_viz,
-              concurix_trace_socket_handler,
+                            concurix_trace_supervisor,
 
-              concurix_send_to_S3
-             ]},
+                            concurix_trace_by_process,
+                            concurix_trace_by_scheduler,
+
+                            concurix_send_to_viz,
+                            concurix_trace_socket_handler,
+
+                            concurix_send_to_S3
+                          ]},
   {registered,            []},
-  {included_applications, [erlcloud]},
+  {included_applications, [erlcloud]},                  %% MDN Why included rather than dependent?
   {applications,          [kernel, stdlib, crypto, ranch, cowboy, gproc]},
   {env,                   []},
-  {mod,					  {concurix_runtime_app, []}}
+  {mod,                   {concurix_runtime_app, []}}
  ]}.

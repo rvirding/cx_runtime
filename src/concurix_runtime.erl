@@ -2,7 +2,7 @@
 
 -behaviour(gen_server).
 
--export([start/2, start_link/1, stop/1]).
+-export([start/2, start_link/0, stop/0]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -10,10 +10,6 @@
 
 -include("concurix_runtime.hrl").
 
-%%
-%% MDN 02/28/2013 Question:
-%%     What happens if start is called more than once without matched calls to stop?
-%%
 start(Filename, Options) ->
 
   case lists:member(msg_trace, Options) of
@@ -23,66 +19,83 @@ start(Filename, Options) ->
 
       {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
 
-		  application:start(crypto),
-		  application:start(inets),
-		  application:start(ranch),
-		  application:start(cowboy),
+      application:start(crypto),
+      application:start(inets),
+      application:start(ranch),
+      application:start(cowboy),
 
-		  application:start(gproc),
-		  application:start(ssl),
-		  application:start(timer),
+      application:start(gproc),
+      application:start(ssl),
+      application:start(timer),
 
-		  ssl:start(),
-		
-			application:set_env(concurix_runtime, config, Config),
-			application:start(concurix_runtime);
+      ssl:start(),
+    
+      application:start(concurix_runtime),
+      gen_server:call(?MODULE, { start_tracer, Config });
 
     false ->
       { failed }
   end.
 
-start_link(Config) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+start_link() ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-	
-%% This Pid should be a reference to "this" gen_server.
-%% The naked message send will cause ?MODULE:handle_info/2 to be triggered
-stop(Pid) ->
-  Pid ! stop,
-  ok.
+  
+stop() ->
+  gen_server:call(?MODULE, stop_tracer).
 
 %%
 %% gen_server support
 %%
 
-init([Config]) ->
+init([]) ->
+  {ok, undefined}.
+
+handle_call({start_tracer, Config}, _From, undefined) ->
   %% Contact concurix.com and obtain Keys for S3
-  RunInfo    = get_run_info(Config),
-  RunId      = proplists:get_value(run_id, RunInfo),
+  RunInfo   = get_run_info(Config),
+  RunId     = proplists:get_value(run_id, RunInfo),
 
   io:format("Starting tracing with RunId ~p~n", [RunId]),
 
   %% Allocate shared tables
-  Procs      = setup_ets_table(cx_procinfo),
-  Links      = setup_ets_table(cx_linkstats),
-  SysProf    = setup_ets_table(cx_sysprof),
-	ProcLink	 = setup_ets_table(cx_proclink),
+  Procs     = setup_ets_table(cx_procinfo),
+  Links     = setup_ets_table(cx_linkstats),
+  SysProf   = setup_ets_table(cx_sysprof),
+  ProcLink  = setup_ets_table(cx_proclink),
 
-  State      = #tcstate{runInfo         = RunInfo,
+  State     = #tcstate{runInfo         = RunInfo,
 
-                        processTable    = Procs,
-                        linkTable       = Links,
-                        sysProfTable    = SysProf,
-												procLinkTable	  = ProcLink,
-                        traceSupervisor = undefined,
-                        sendUpdates     = true},
+                       processTable    = Procs,
+                       linkTable       = Links,
+                       sysProfTable    = SysProf,
+                       procLinkTable   = ProcLink,
+                       traceSupervisor = undefined,
+                       sendUpdates     = true},
 
-  {ok, Sup } = concurix_trace_supervisor:start(State),
+  {ok, Sup} = concurix_trace_supervisor:start(State),
 
-	fill_initial_tables(State),
+  fill_initial_tables(State),
 
-  {ok, State#tcstate{traceSupervisor = Sup}}.
- 
+  {reply, ok, State#tcstate{traceSupervisor = Sup}};
+
+handle_call({start_tracer, _Config}, _From, State) ->
+  io:format("~p:handle_call/3   start_tracer but already running~n", [?MODULE]),
+  {reply, ok, State};
+
+handle_call(stop_tracer, _From, undefined) ->
+  io:format("~p:handle_call/3   stop_tracer but tracer is not running~n", [?MODULE]),
+  {reply, ok, undefined};
+
+handle_call(stop_tracer, _From, State) ->
+  concurix_trace_supervisor:stop(State#tcstate.traceSupervisor),
+  {reply, ok, undefined}.
+
+
+
+
+
+
 %% Make an http call back to concurix for a run id.
 %% Assume that the synchronous version of httpc works, although
 %% we know it has some intermittent problems under chicago boss.
@@ -147,15 +160,11 @@ setup_ets_table(T) ->
       T
   end.
 
-handle_call(_Call, _From, State) ->
-  {reply, ok, State}.
+
 
 handle_cast(_Msg, State) ->
   {noreply, State}.
  
-handle_info(stop, State) ->
-  concurix_trace_supervisor:stop(State#tcstate.traceSupervisor),
-  {noreply, State};
 
 handle_info(_Msg, State) ->
   {noreply, State}.
@@ -164,7 +173,7 @@ terminate(_Reason, State) ->
   ets:delete(State#tcstate.processTable),
   ets:delete(State#tcstate.linkTable),
   ets:delete(State#tcstate.sysProfTable),
-	ets:delete(State#tcstate.procLinkTable),
+  ets:delete(State#tcstate.procLinkTable),
   ok.
  
 code_change(_oldVsn, State, _Extra) ->
@@ -177,22 +186,22 @@ code_change(_oldVsn, State, _Extra) ->
 %% 
 
 get_current_json(State) ->
-  ets:safe_fixtable(State#tcstate.processTable, true),
-  ets:safe_fixtable(State#tcstate.linkTable,    true),
-  ets:safe_fixtable(State#tcstate.sysProfTable, true),
-	ets:safe_fixtable(State#tcstate.procLinkTable, true),
+  ets:safe_fixtable(State#tcstate.processTable,  true),
+  ets:safe_fixtable(State#tcstate.linkTable,     true),
+  ets:safe_fixtable(State#tcstate.sysProfTable,  true),
+  ets:safe_fixtable(State#tcstate.procLinkTable, true),
 
   RawProcs       = ets:tab2list(State#tcstate.processTable),
   RawLinks       = ets:tab2list(State#tcstate.linkTable),
   RawSys         = ets:tab2list(State#tcstate.sysProfTable),
-	RawProcLink		 = ets:tab2list(State#tcstate.procLinkTable),
+  RawProcLink    = ets:tab2list(State#tcstate.procLinkTable),
 
   {Procs, Links} = validate_tables(RawProcs, RawLinks, State),
  
-  ets:safe_fixtable(State#tcstate.sysProfTable, false),
-  ets:safe_fixtable(State#tcstate.linkTable,    false),  
-  ets:safe_fixtable(State#tcstate.processTable, false),
-	ets:safe_fixtable(State#tcstate.procLinkTable, false),
+  ets:safe_fixtable(State#tcstate.sysProfTable,  false),
+  ets:safe_fixtable(State#tcstate.linkTable,     false),  
+  ets:safe_fixtable(State#tcstate.processTable,  false),
+  ets:safe_fixtable(State#tcstate.procLinkTable, false),
 
   TempProcs      = [ [{name,            pid_to_b(Pid)}, 
                       {module,          term_to_b(M)}, 
@@ -202,19 +211,19 @@ get_current_json(State) ->
                       local_process_info(Pid, total_heap_size),
                       term_to_b({service, Service}),
                       {scheduler,       Scheduler},
-											{behaviour, 			Behaviour},
-											{application, 		pid_to_application(Pid)}] || 
+                      {behaviour,       Behaviour},
+                      {application,     pid_to_application(Pid)}] || 
                       {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs ],
 
   TempLinks      = [ [{source,          pid_to_b(A)}, 
                       {target,          pid_to_b(B)},
                       {value,           C},
-											{words_sent,		  D}] || 
+                      {words_sent,      D}] || 
                       {{A, B}, C, D} <- Links],
 
-  ProcLinks			 = [ [{source,					pid_to_b(A)},
-											{target,					pid_to_b(B)}]
-											|| {A, B} <- RawProcLink],
+  ProcLinks       = [ [{source,         pid_to_b(A)},
+                       {target,         pid_to_b(B)}]
+                      || {A, B} <- RawProcLink],
 
   Schedulers     = [ [{scheduler,       Id}, 
                       {process_create,  Create}, 
@@ -234,7 +243,7 @@ get_current_json(State) ->
                     {run_id,            list_to_binary(Run_id)},
                     {nodes,             TempProcs},
                     {links,             TempLinks},
-										{proclinks,					ProcLinks},
+                    {proclinks,         ProcLinks},
                     {schedulers,        Schedulers}],
  
   lists:flatten(mochijson2:encode([{data, Send}])).
@@ -284,7 +293,7 @@ update_process_info([Pid | T], Acc) ->
   end,
 
   Service = mod_to_service(Mod),
-	Behave  = mod_to_behaviour(Mod),
+  Behave  = mod_to_behaviour(Mod),
   NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service, 1, Behave}],
 
   update_process_info(T, NewAcc).
@@ -400,13 +409,13 @@ mod_to_service(Mod) ->
   end.
 
 mod_to_behaviour(unknown) ->
-	[<<"undefined">>];
+  [<<"undefined">>];
 mod_to_behaviour(port) ->
-	[<<"port">>];
+  [<<"port">>];
 mod_to_behaviour(Mod) when is_port(Mod) ->
-	[<<"port">>];
+  [<<"port">>];
 mod_to_behaviour(Mod) when is_list(Mod) ->
-	mod_to_behaviour(list_to_atom(Mod));
+  mod_to_behaviour(list_to_atom(Mod));
 mod_to_behaviour(Mod) ->
   Behaviour = case Mod of
       supervisor ->
@@ -426,17 +435,17 @@ mod_to_behaviour(Mod) ->
                   [undefined]
           end
   end,
-	[atom_to_binary(X, latin1) || X <- Behaviour].
-	
+  [atom_to_binary(X, latin1) || X <- Behaviour].
+  
 pid_to_application(Pid) when is_pid(Pid) ->
-	case application:get_application(Pid) of
-		undefined -> <<"undefined">>;
-		{ok, App} -> atom_to_binary(App, latin1);
-		_X -> <<"undefined">>
-	end;
+  case application:get_application(Pid) of
+    undefined -> <<"undefined">>;
+    {ok, App} -> atom_to_binary(App, latin1);
+    _X -> <<"undefined">>
+  end;
 pid_to_application(_Pid) ->
-	<<"undefined">>.
-	
+  <<"undefined">>.
+  
 %%
 %%
 %%
@@ -464,24 +473,24 @@ path_to_service(Path) ->
 %% so that things like the supervision tree are realized properly.
 
 fill_initial_tables(State) ->
-	Processes = processes(),
-	fill_initial_proctable(State#tcstate.processTable, Processes),
-	fill_initial_proclinktable(State#tcstate.procLinkTable, Processes).
-	
+  Processes = processes(),
+  fill_initial_proctable(State#tcstate.processTable, Processes),
+  fill_initial_proclinktable(State#tcstate.procLinkTable, Processes).
+  
 fill_initial_proctable(Table, Processes) ->
-	ProcList = update_process_info(Processes, []),
-	lists:foreach(fun(P) -> ets:insert(Table, P) end, ProcList).
-	
+  ProcList = update_process_info(Processes, []),
+  lists:foreach(fun(P) -> ets:insert(Table, P) end, ProcList).
+  
 fill_initial_proclinktable(_Table, []) ->
-	ok;
+  ok;
 fill_initial_proclinktable(Table, [P | Tail]) ->
-	lists:foreach(fun(P2) ->
-		ets:insert(Table, {P, P2})
-		end,
-		get_proc_links(P)
-		),
-	fill_initial_proclinktable(Table, Tail).
-	
+  lists:foreach(fun(P2) ->
+    ets:insert(Table, {P, P2})
+    end,
+    get_proc_links(P)
+    ),
+  fill_initial_proclinktable(Table, Tail).
+  
 get_proc_links(Proc) ->
     %% Returns a list of linked processes.
     case process_info(Proc, links) of
