@@ -285,7 +285,7 @@ update_process_info([Pid | T], Acc) ->
 
   Service = mod_to_service(Mod),
 	Behave  = mod_to_behaviour(Mod),
-  NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service, 0, Behave}],
+  NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service, 1, Behave}],
 
   update_process_info(T, NewAcc).
   

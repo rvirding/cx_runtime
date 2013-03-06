@@ -56,7 +56,7 @@ handle_info({trace, Creator, spawn, Pid, Data}, State) ->
 
   Service = concurix_runtime:mod_to_service(Mod),
   Behaviour = concurix_runtime:mod_to_behaviour(Mod),
-  Key     = {Pid, {Mod, Fun, Arity}, Service, 0, Behaviour},
+  Key     = {Pid, {Mod, Fun, Arity}, Service, 1, Behaviour},
 
   ets:insert(State#ctbp_state.processTable, Key),
 
