@@ -104,7 +104,7 @@ handle_info({trace, Sender, send, Data, Recipient}, State) ->
   update_proc_table(Sender,    State),
   update_proc_table(Recipient, State),
 
-	Size = erts_debug:size(Data),
+	Size = erts_debug:flat_size(Data),
 	
   case ets:lookup(State#ctbp_state.linkTable, {Sender, Recipient}) of
     [] ->
