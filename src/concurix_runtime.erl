@@ -205,7 +205,7 @@ get_current_json(State) ->
 
   TempProcs      = [ [{name,            pid_to_b(Pid)}, 
                       {module,          term_to_b(M)}, 
-                      {function,        term_to_b(F)}, 
+                      {fun_name,        term_to_b(F)}, 
                       {arity,           A}, 
                       local_process_info(Pid, reductions),
                       local_process_info(Pid, total_heap_size),
