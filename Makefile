@@ -56,8 +56,11 @@ install-cx-runtime:
 	install -d $(CXRUN_INSTALL_DIR)/ebin
 	install -m 644 ebin/concurix_runtime.app          $(CXRUN_INSTALL_DIR)/ebin
 	install -m 644 ebin/*.beam                        $(CXRUN_INSTALL_DIR)/ebin
+
+install: install-cowboy install-erlcloud install-gproc install-mochiweb install-cx-runtime
+
+install-cx-boot: install
 	install scripts/concurix_runtime.boot             $(ROOT)/bin
 	install scripts/concurix_runtime.boot             $(ROOT)/releases/R15B02
 	install scripts/concurix_runtime.script           $(ROOT)/releases/R15B02
 
-install: install-cowboy install-erlcloud install-gproc install-mochiweb install-cx-runtime
