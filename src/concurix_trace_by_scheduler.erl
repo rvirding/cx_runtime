@@ -1,3 +1,18 @@
+%% %CopyrightBegin%
+%%
+%% Copyright Concurix Corporation 2012-2013. All Rights Reserved.
+%%
+%% The contents of this file are subject to the Concurix Terms of Service:
+%% http://www.concurix.com/main/tos_main
+%%
+%% The Software distributed under the License is distributed on an "AS IS"
+%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. 
+%%
+%% %CopyrightEnd%
+%%
+%% This gen_server handles functinality exposed by the Concurix's extensions to the
+%% erlang system_profile API.
+%%
 -module(concurix_trace_by_scheduler).
 
 -behaviour(gen_server).

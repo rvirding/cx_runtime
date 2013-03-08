@@ -1,3 +1,19 @@
+%% %CopyrightBegin%
+%%
+%% Copyright Concurix Corporation 2012-2013. All Rights Reserved.
+%%
+%% The contents of this file are subject to the Concurix Terms of Service:
+%% http://www.concurix.com/main/tos_main
+%%
+%% The Software distributed under the License is distributed on an "AS IS"
+%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. 
+%%
+%% %CopyrightEnd%
+%%
+%% The second supervisor for Concurix Runtime; this one supervises the various tracers
+%% that are running.  It in turn is supervised by the master supervisor, concurix_runtime_sup
+%%
+
 -module(concurix_trace_supervisor).
 
 -behaviour(supervisor).
