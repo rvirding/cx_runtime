@@ -2,14 +2,14 @@
 
 -behaviour(supervisor).
 
--export([start/1, stop/1, init/1, stopUpdates/1]).
+-export([start_link/2, stop/1, init/1, stopUpdates/1]).
 
 -include("concurix_runtime.hrl").
 
 -define(TIMER_SEND_DELAY, 5 * 1000).    %% Wait 5 seconds before turning off the senders
 
-start(State) ->
-  supervisor:start_link(?MODULE, [State]).
+start_link(State, Options) ->
+  supervisor:start_link(?MODULE, [State, Options]).
 
 stop(Pid) ->
   lists:foreach(fun(X) -> stopTracers(X) end, supervisor:which_children(Pid)),
@@ -47,7 +47,7 @@ stopUpdaters(_Other) ->
 
 
 
-init([State]) ->
+init([State, _Options]) ->
   ProfTable = State#tcstate.sysProfTable,
 
   Terminate = 2 * 1000,
