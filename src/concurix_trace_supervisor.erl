@@ -47,16 +47,32 @@ stopUpdaters(_Other) ->
 
 
 
-init([State, _Options]) ->
-  ProfTable = State#tcstate.sysProfTable,
+init([State, Options]) ->
+  Terminate  = 2 * 1000,
 
-  Terminate = 2 * 1000,
+  StateTrace = State#tcstate{collectTraceData = enable_trace(Options)},
+  StateProf  = State#tcstate{collectTraceData = enable_prof (Options)},
+  StateViz   = State#tcstate{sendUpdates      = enable_viz  (Options)},
+  StateS3    = State#tcstate{sendUpdates      = enable_s3   (Options)},
 
-  Children  = [
-                {proc, {concurix_trace_by_process,   start_link, [State]},     permanent, Terminate, worker, [concurix_trace_by_process]},
-                {prof, {concurix_trace_by_scheduler, start_link, [ProfTable]}, permanent, Terminate, worker, [concurix_trace_by_scheduler]},
-                {viz,  {concurix_trace_send_to_viz,  start_link, [State]},     permanent, Terminate, worker, [concurix_trace_send_to_viz]},
-                {s3,   {concurix_trace_send_to_S3,   start_link, [State]},     permanent, Terminate, worker, [concurix_trace_send_to_S3]}
-              ],
+  Children   = [
+                 {proc, {concurix_trace_by_process,   start_link, [StateTrace]}, permanent, Terminate, worker, [concurix_trace_by_process]},
+                 {prof, {concurix_trace_by_scheduler, start_link, [StateProf]},  permanent, Terminate, worker, [concurix_trace_by_scheduler]},
+                 {viz,  {concurix_trace_send_to_viz,  start_link, [StateViz]},   permanent, Terminate, worker, [concurix_trace_send_to_viz]},
+                 {s3,   {concurix_trace_send_to_S3,   start_link, [StateS3]},    permanent, Terminate, worker, [concurix_trace_send_to_S3]}
+               ],
 
   {ok, {{one_for_one, 1, 60}, Children}}.
+
+
+enable_trace(_Options) ->
+  true.
+
+enable_prof(_Options) ->
+  true.
+
+enable_viz(_Options) ->
+  true.
+
+enable_s3(_Options) ->
+  true.

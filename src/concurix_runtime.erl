@@ -54,16 +54,19 @@ handle_call({start_tracer, Config, Options},   _From, undefined) ->
 
       io:format("Starting tracing with RunId ~p~n", [RunId]),
 
-      State     = #tcstate{runInfo         = RunInfo,
+      State     = #tcstate{runInfo          = RunInfo,
 
                            %% Tables to communicate between data collectors and data transmitters
-                           processTable    = setup_ets_table(cx_procinfo),
-                           linkTable       = setup_ets_table(cx_linkstats),
-                           sysProfTable    = setup_ets_table(cx_sysprof),
-                           procLinkTable   = setup_ets_table(cx_proclink),
+                           processTable     = setup_ets_table(cx_procinfo),
+                           linkTable        = setup_ets_table(cx_linkstats),
+                           sysProfTable     = setup_ets_table(cx_sysprof),
+                           procLinkTable    = setup_ets_table(cx_proclink),
 
-                           traceSupervisor = undefined,
-                           sendUpdates     = true},
+                           traceSupervisor  = undefined,
+
+                           collectTraceData = undefined,
+                           sendUpdates      = undefined
+                          },
 
       fill_initial_tables(State),
 
@@ -92,7 +95,7 @@ handle_call(stop_tracer, _From, State) ->
 
 %%
 tracer_is_enabled(Options) ->
-  tracer_is_enabled(Options, [ msg_trace, enable_send_to_viz, enable_send_to_S3 ]).
+  tracer_is_enabled(Options, [ msg_trace, enable_sys_profile, enable_send_to_viz, enable_send_to_S3 ]).
 
 tracer_is_enabled([], _TracerOptions) ->
   false;

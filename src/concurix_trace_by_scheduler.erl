@@ -7,11 +7,15 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
-start_link(SysProfTable) ->
-  gen_server:start_link(?MODULE, [SysProfTable], []).
+-include("concurix_runtime.hrl").
 
-init([SysProfTable]) ->
-  SysProfPid = spawn_link(?MODULE, handle_system_profile, [SysProfTable]),
+start_link(State) ->
+  gen_server:start_link(?MODULE, [State], []).
+
+init([State]) ->
+  SysProfTable = State#tcstate.sysProfTable,
+  SysProfPid   = spawn_link(?MODULE, handle_system_profile, [SysProfTable]),
+
   erlang:system_profile(SysProfPid, [concurix]),
 
   {ok, undefined}.
