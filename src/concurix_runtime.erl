@@ -22,9 +22,8 @@
 
 -export([update_process_info/1, mod_to_service/1, local_translate_initial_call/1, get_current_json/1, mod_to_behaviour/1]).
 
--export([tracer_is_enabled/1]).
-
 -include("concurix_runtime.hrl").
+
 
 %%
 %% The no-argument start will look for concurix.config, downloading and installing one if necessary
@@ -62,10 +61,21 @@ internal_start(Config, Options) ->
   ssl:start(),
     
   application:start(concurix_runtime),
-  gen_server:call(?MODULE, { start_tracer, Config, Options }).
+
+  case tracer_is_enabled(Options) of
+    true  ->
+      %% Contact concurix.com and obtain Keys for S3
+      RunInfo             = get_run_info(Config),
+
+      gen_server:call(?MODULE, { start_tracer, RunInfo, Options });
+
+    false ->
+      { failed, bad_options }
+  end.
 
 stop() ->
-  gen_server:call(?MODULE, stop_tracer).
+  gen_server:call(?MODULE, stop_tracer),
+  application:stop(concurix_runtime).
 
 %%
 %% gen_server support
@@ -77,38 +87,28 @@ start_link() ->
 init([]) ->
   {ok, undefined}.
 
-handle_call({start_tracer, Config, Options},   _From, undefined) ->
-  case tracer_is_enabled(Options) of
-    true  ->
-      %% Contact concurix.com and obtain Keys for S3
-      RunInfo   = get_run_info(Config),
-      RunId     = proplists:get_value(run_id, RunInfo),
+handle_call({start_tracer, RunInfo, Options},  _From, undefined) ->
+  io:format("Starting tracing with RunId ~p~n", [proplists:get_value(run_id, RunInfo)]),
 
-      io:format("Starting tracing with RunId ~p~n", [RunId]),
+  State     = #tcstate{runInfo          = RunInfo,
 
-      State     = #tcstate{runInfo          = RunInfo,
+                       %% Tables to communicate between data collectors and data transmitters
+                       processTable     = setup_ets_table(cx_procinfo),
+                       linkTable        = setup_ets_table(cx_linkstats),
+                       sysProfTable     = setup_ets_table(cx_sysprof),
+                       procLinkTable    = setup_ets_table(cx_proclink),
 
-                           %% Tables to communicate between data collectors and data transmitters
-                           processTable     = setup_ets_table(cx_procinfo),
-                           linkTable        = setup_ets_table(cx_linkstats),
-                           sysProfTable     = setup_ets_table(cx_sysprof),
-                           procLinkTable    = setup_ets_table(cx_proclink),
+                       traceSupervisor  = undefined,
 
-                           traceSupervisor  = undefined,
+                       collectTraceData = undefined,
+                       sendUpdates      = undefined
+                      },
 
-                           collectTraceData = undefined,
-                           sendUpdates      = undefined
-                          },
+  fill_initial_tables(State),
 
-      fill_initial_tables(State),
+  {ok, Sup} = concurix_trace_supervisor:start_link(State, Options),
 
-      {ok, Sup} = concurix_trace_supervisor:start_link(State, Options),
-
-      {reply, ok, State#tcstate{traceSupervisor = Sup}};
-
-    false ->
-      { failed }
-  end;
+  {reply, ok, State#tcstate{traceSupervisor = Sup}};
 
 handle_call({start_tracer, _Config, _Options}, _From, State) ->
   io:format("~p:handle_call/3   start_tracer but already running~n", [?MODULE]),
@@ -119,7 +119,7 @@ handle_call(stop_tracer, _From, undefined) ->
   {reply, ok, undefined};
 
 handle_call(stop_tracer, _From, State) ->
-  concurix_trace_supervisor:stop(State#tcstate.traceSupervisor),
+  concurix_trace_supervisor:stop_tracing(State#tcstate.traceSupervisor),
   {reply, ok, undefined}.
 
 

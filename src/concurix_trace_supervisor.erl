@@ -10,15 +10,15 @@
 %%
 %% %CopyrightEnd%
 %%
-%% The second supervisor for Concurix Runtime; this one supervises the various tracers
-%% that are running.  It in turn is supervised by the master supervisor, concurix_runtime_sup
+%% The second supervisor for Concurix Runtime; this one supervises the tracers and senders
+%% that are running.  It is currently owned by the primary gen_server concurix_runtime
 %%
 
 -module(concurix_trace_supervisor).
 
 -behaviour(supervisor).
 
--export([start_link/2, stop/1, init/1, stopUpdates/1]).
+-export([start_link/2, init/1, stop_tracing/1, stop_sending/1]).
 
 -include("concurix_runtime.hrl").
 
@@ -26,41 +26,6 @@
 
 start_link(State, Options) ->
   supervisor:start_link(?MODULE, [State, Options]).
-
-stop(Pid) ->
-  lists:foreach(fun(X) -> stopTracers(X) end, supervisor:which_children(Pid)),
-  timer:apply_after(?TIMER_SEND_DELAY, ?MODULE, stopUpdates, [Pid]),
-  ok.
-
-stopTracers({proc, Pid, worker, _Args}) ->
-  Pid ! stop_tracing;
-
-stopTracers({prof, Pid, worker, _Args}) ->
-  Pid ! stop_tracing;
-
-stopTracers(_Other) ->
-  ok.
-
-
-
-
-stopUpdates(Pid) ->
-  lists:foreach(fun(X) -> stopUpdaters(X) end, supervisor:which_children(Pid)).
-
-stopUpdaters({viz, Pid, worker, _Args}) ->
-  Pid ! stop_updating;
-
-stopUpdaters({s3,  Pid, worker, _Args}) ->
-  Pid ! stop_updating;
-
-stopUpdaters(_Other) ->
-  ok.
-
-
-
-
-
-
 
 
 init([State, Options]) ->
@@ -92,3 +57,37 @@ enable_viz(_Options) ->
 
 enable_s3(_Options) ->
   true.
+
+
+%% Exported API for starting and stopping the 2 collectors and 2 transmitters owned by this supervisor
+stop_tracing(Pid) ->
+  lists:foreach(fun(X) -> stopTracers(X) end, supervisor:which_children(Pid)),
+  timer:apply_after(?TIMER_SEND_DELAY, ?MODULE, stop_sending, [Pid]),
+  ok.
+
+stop_sending(Pid) ->
+  lists:foreach(fun(X) -> stopSenders(X) end, supervisor:which_children(Pid)).
+
+
+
+%% Stop the two data collectors
+stopTracers({proc, Pid, worker, _Args}) ->
+  Pid ! stop_tracing;
+
+stopTracers({prof, Pid, worker, _Args}) ->
+  Pid ! stop_tracing;
+
+stopTracers(_Other) ->
+  ok.
+
+
+%% Stop the two data senders
+stopSenders({viz, Pid, worker, _Args}) ->
+  Pid ! stop_updating;
+
+stopSenders({s3,  Pid, worker, _Args}) ->
+  Pid ! stop_updating;
+
+stopSenders(_Other) ->
+  ok.
+
