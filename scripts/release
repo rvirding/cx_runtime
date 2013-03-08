@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -sname release -pa deps/cowboy/ebin deps/erlcloud/ebin deps/gproc/ebin deps/mochiweb/ebin deps/purity/ebin deps/ranch/ebin ebin
+%%! -sname release -pa deps/cowboy/ebin deps/erlcloud/ebin deps/gproc/ebin deps/mochiweb/ebin deps/ranch/ebin ebin
 
 %% Construct the boot script files for a concurix_runtime release.
 %% To be run from the concurix_runtime top-level directory after
