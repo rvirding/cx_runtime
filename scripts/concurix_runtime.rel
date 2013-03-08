@@ -16,7 +16,6 @@
   {inets, "5.9.1"},
   {mochiweb, "2.3.0"},
   {public_key, "0.16"},
-  {purity, "0.2"},
   {ranch, "0.6.1"},
   {sasl, "2.2.1"},
   {ssl, "5.1"},

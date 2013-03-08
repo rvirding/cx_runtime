@@ -22,39 +22,30 @@
 
 -export([update_process_info/1, mod_to_service/1, local_translate_initial_call/1, get_current_json/1, mod_to_behaviour/1]).
 
+-export([tracer_is_enabled/1]).
+
 -include("concurix_runtime.hrl").
 
 start(Filename, Options) ->
+  {ok, CWD}           = file:get_cwd(),
+  Dirs                = code:get_path(),
 
-  case lists:member(msg_trace, Options) of
-    true  ->
-      {ok, CWD }          = file:get_cwd(),
-      Dirs                = code:get_path(),
+  {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
 
-      {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
+  application:start(crypto),
+  application:start(inets),
+  application:start(ranch),
+  application:start(cowboy),
 
-      application:start(crypto),
-      application:start(inets),
-      application:start(ranch),
-      application:start(cowboy),
+  application:start(gproc),
+  application:start(ssl),
+  application:start(timer),
 
-      application:start(gproc),
-      application:start(ssl),
-      application:start(timer),
-
-      ssl:start(),
+  ssl:start(),
     
-      application:start(concurix_runtime),
-      gen_server:call(?MODULE, { start_tracer, Config });
+  application:start(concurix_runtime),
+  gen_server:call(?MODULE, { start_tracer, Config, Options }).
 
-    false ->
-      { failed }
-  end.
-
-start_link() ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
-  
 stop() ->
   gen_server:call(?MODULE, stop_tracer).
 
@@ -62,38 +53,46 @@ stop() ->
 %% gen_server support
 %%
 
+start_link() ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
 init([]) ->
   {ok, undefined}.
 
-handle_call({start_tracer, Config}, _From, undefined) ->
-  %% Contact concurix.com and obtain Keys for S3
-  RunInfo   = get_run_info(Config),
-  RunId     = proplists:get_value(run_id, RunInfo),
+handle_call({start_tracer, Config, Options},   _From, undefined) ->
+  case tracer_is_enabled(Options) of
+    true  ->
+      %% Contact concurix.com and obtain Keys for S3
+      RunInfo   = get_run_info(Config),
+      RunId     = proplists:get_value(run_id, RunInfo),
 
-  io:format("Starting tracing with RunId ~p~n", [RunId]),
+      io:format("Starting tracing with RunId ~p~n", [RunId]),
 
-  %% Allocate shared tables
-  Procs     = setup_ets_table(cx_procinfo),
-  Links     = setup_ets_table(cx_linkstats),
-  SysProf   = setup_ets_table(cx_sysprof),
-  ProcLink  = setup_ets_table(cx_proclink),
+      State     = #tcstate{runInfo          = RunInfo,
 
-  State     = #tcstate{runInfo         = RunInfo,
+                           %% Tables to communicate between data collectors and data transmitters
+                           processTable     = setup_ets_table(cx_procinfo),
+                           linkTable        = setup_ets_table(cx_linkstats),
+                           sysProfTable     = setup_ets_table(cx_sysprof),
+                           procLinkTable    = setup_ets_table(cx_proclink),
 
-                       processTable    = Procs,
-                       linkTable       = Links,
-                       sysProfTable    = SysProf,
-                       procLinkTable   = ProcLink,
-                       traceSupervisor = undefined,
-                       sendUpdates     = true},
+                           traceSupervisor  = undefined,
 
-  {ok, Sup} = concurix_trace_supervisor:start(State),
+                           collectTraceData = undefined,
+                           sendUpdates      = undefined
+                          },
 
-  fill_initial_tables(State),
+      fill_initial_tables(State),
 
-  {reply, ok, State#tcstate{traceSupervisor = Sup}};
+      {ok, Sup} = concurix_trace_supervisor:start_link(State, Options),
 
-handle_call({start_tracer, _Config}, _From, State) ->
+      {reply, ok, State#tcstate{traceSupervisor = Sup}};
+
+    false ->
+      { failed }
+  end;
+
+handle_call({start_tracer, _Config, _Options}, _From, State) ->
   io:format("~p:handle_call/3   start_tracer but already running~n", [?MODULE]),
   {reply, ok, State};
 
@@ -108,7 +107,21 @@ handle_call(stop_tracer, _From, State) ->
 
 
 
+%%
+tracer_is_enabled(Options) ->
+  tracer_is_enabled(Options, [ msg_trace, enable_sys_profile, enable_send_to_viz, enable_send_to_S3 ]).
 
+tracer_is_enabled([], _TracerOptions) ->
+  false;
+
+tracer_is_enabled([Head | Tail], TracerOptions) ->
+  case lists:member(Head, TracerOptions) of
+    true  ->
+      true;
+
+    false ->
+      tracer_is_enabled(Tail, TracerOptions)
+  end.
 
 %% Make an http call back to concurix for a run id.
 %% Assume that the synchronous version of httpc works, although
