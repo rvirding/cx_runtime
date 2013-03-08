@@ -14,7 +14,7 @@ start(Filename, Options) ->
 
   case lists:member(msg_trace, Options) of
     true  ->
-      {ok, CWD }          = file:get_cwd(),
+      {ok, CWD}           = file:get_cwd(),
       Dirs                = code:get_path(),
 
       {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
@@ -37,16 +37,15 @@ start(Filename, Options) ->
       { failed }
   end.
 
-start_link() ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
-  
 stop() ->
   gen_server:call(?MODULE, stop_tracer).
 
 %%
 %% gen_server support
 %%
+
+start_link() ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
   {ok, undefined}.
