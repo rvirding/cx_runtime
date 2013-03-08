@@ -30,7 +30,7 @@
 %%
 start() ->
   application:start(inets),
-  Result = httpc:request("http://localhost:8001/bench/get_config_download/benchcode-381"),
+  Result = httpc:request("http://concurix.com/bench/get_config_download/benchcode-381"),
   case Result of
     {ok, {{_, 200, "OK"}, _Headers, Body}} ->
       Config = eval_string(Body),
