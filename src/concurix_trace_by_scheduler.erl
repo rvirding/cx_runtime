@@ -31,7 +31,10 @@ init([State]) ->
   SysProfTable = State#tcstate.sysProfTable,
   SysProfPid   = spawn_link(?MODULE, handle_system_profile, [SysProfTable]),
 
-  erlang:system_profile(SysProfPid, [concurix]),
+  try erlang:system_profile(SysProfPid, [concurix])
+  catch
+    _X -> io:format("upgrade to Concurix Erlang for more detailed tracing: http://www.concurix.com/main/products")
+  end,
 
   {ok, undefined}.
 

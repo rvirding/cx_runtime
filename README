@@ -6,3 +6,5 @@ Build
 To build the cx_runtime library just run make.
 $ make
 
+For instructions on how to use the cx_runtime, see
+http://www.concurix.com/main/documentation
