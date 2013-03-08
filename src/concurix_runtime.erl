@@ -16,7 +16,7 @@
 
 -behaviour(gen_server).
 
--export([start/2, start_link/0, stop/0]).
+-export([start/0, start/2, start_link/0, stop/0]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -26,12 +26,30 @@
 
 -include("concurix_runtime.hrl").
 
+%%
+%% The no-argument start will look for concurix.config, downloading and installing one if necessary
+%%
+start() ->
+  application:start(inets),
+  Result = httpc:request("http://localhost:8001/bench/get_config_download/benchcode-381"),
+  case Result of
+    {ok, {{_, 200, "OK"}, _Headers, Body}} ->
+      Config = eval_string(Body),
+      internal_start([Config], [msg_trace]);
+    Error ->
+      io:format("error, could not autoconfigure concurix_runtime ~p ~n", [Error]),
+      {error, Error}
+  end.
+      
 start(Filename, Options) ->
   {ok, CWD}           = file:get_cwd(),
   Dirs                = code:get_path(),
 
   {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
+  internal_start(Config, Options).
 
+internal_start(Config, Options) ->
+  io:format("got internal start with Config ~p Options ~p ~n", [Config, Options]),
   application:start(crypto),
   application:start(inets),
   application:start(ranch),
@@ -172,8 +190,12 @@ config_option([{Key, Value} | _Tail], Key) ->
 config_option([_Head | Tail], Key) ->
   config_option(Tail, Key).
 
-eval_string(String) ->
-  {ok, Tokens, _} = erl_scan:string(lists:concat([String, "."])),
+eval_string(Incoming_String) ->
+  String = case lists:last(Incoming_String) of
+    $. -> Incoming_String;
+    _X -> lists:concat([Incoming_String, "."])
+  end,
+  {ok, Tokens, _} = erl_scan:string(String),
   {_Status, Term} = erl_parse:parse_term(Tokens),
   Term.
 
