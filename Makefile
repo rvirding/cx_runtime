@@ -1,13 +1,13 @@
 REBAR:=$(shell which rebar 2> /dev/null || echo ./rebar)
 
-ROOT              = /usr/local/lib/erlang
-CXRUN_INSTALL_DIR = $(ROOT)/lib/concurix_runtime-0.1
+DESTDIR           = /usr/local/lib/erlang
+CXRUN_INSTALL_DIR = $(DESTDIR)/lib/concurix_runtime-0.1
 
 GPROC_SRC_DIR     = deps/gproc
-GPROC_INSTALL_DIR = $(ROOT)/lib/gproc-0.2.15
+GPROC_INSTALL_DIR = $(DESTDIR)/lib/gproc-0.2.15
 
 MOCHI_SRC_DIR     = deps/mochiweb
-MOCHI_INSTALL_DIR = $(ROOT)/lib/mochiweb-2.3.0
+MOCHI_INSTALL_DIR = $(DESTDIR)/lib/mochiweb-2.3.0
 
 .PHONY: all erl test clean doc install release
 
@@ -66,7 +66,7 @@ release:
 	scripts/release
 
 install-cx-boot: install
-	install scripts/concurix_runtime.boot             $(ROOT)/bin
-	install scripts/concurix_runtime.boot             $(ROOT)/releases/R15B02
-	install scripts/concurix_runtime.script           $(ROOT)/releases/R15B02
+	install scripts/concurix_runtime.boot             $(DESTDIR)/bin
+	install scripts/concurix_runtime.boot             $(DESTDIR)/releases/R15B02
+	install scripts/concurix_runtime.script           $(DESTDIR)/releases/R15B02
 
