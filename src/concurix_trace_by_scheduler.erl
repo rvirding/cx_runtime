@@ -34,7 +34,10 @@ init([State]) ->
   try erlang:system_profile(SysProfPid, [concurix])
   catch
     _Type:_Exception -> 
-      io:format("upgrade to Concurix Erlang for more detailed tracing: http://www.concurix.com/main/products~n")
+      io:format("~n"),
+      io:format("The tracer is started but a Concurix feature was not found~n"),
+      io:format("Upgrade to Concurix Erlang for more detailed tracing: http://www.concurix.com/main/products~n"),
+      io:format("~n")
   end,
 
   {ok, undefined}.
