@@ -33,7 +33,8 @@ init([State]) ->
 
   try erlang:system_profile(SysProfPid, [concurix])
   catch
-    _X -> io:format("upgrade to Concurix Erlang for more detailed tracing: http://www.concurix.com/main/products")
+    _Type:_Exception -> 
+      io:format("upgrade to Concurix Erlang for more detailed tracing: http://www.concurix.com/main/products~n")
   end,
 
   {ok, undefined}.
