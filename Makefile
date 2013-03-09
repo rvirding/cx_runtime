@@ -28,8 +28,8 @@ clean:
 doc:
 	$(REBAR) doc
 
-release:
-	scripts/release
+
+
 
 install-cowboy:
 	cd deps/cowboy   && make install
@@ -58,6 +58,12 @@ install-cx-runtime:
 	install -m 644 ebin/*.beam                        $(CXRUN_INSTALL_DIR)/ebin
 
 install: install-cowboy install-erlcloud install-gproc install-mochiweb install-cx-runtime
+
+
+
+
+release:
+	scripts/release
 
 install-cx-boot: install
 	install scripts/concurix_runtime.boot             $(ROOT)/bin
