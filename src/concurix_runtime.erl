@@ -48,7 +48,6 @@ start(Filename, Options) ->
   internal_start(Config, Options).
 
 internal_start(Config, Options) ->
-  io:format("got internal start with Config ~p Options ~p ~n", [Config, Options]),
   application:start(crypto),
   application:start(inets),
   application:start(ranch),
