@@ -29,11 +29,15 @@ start_link(State) ->
 
 init([State]) ->
   %%                                {HostMatch, list({Path, Handler,                       Opts})}
-  Dispatch = cowboy_router:compile([{'_',       [    {"/",  concurix_trace_socket_handler, [self()]} ] } ]),
-
+  %%Dispatch = cowboy_router:compile([{'_',       [    {"/",  concurix_trace_socket_handler, [self()]} ] } ]),
+  Dispatch = [{'_', [
+      {'_', concurix_trace_socket_handler, []}
+    ]}],
+  io:format("trying to start cowboy ~n"),
   %%                Name, NbAcceptors, TransOpts,      ProtoOpts
-  cowboy:start_http(http, 10,          [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
+  Res = cowboy:start_listener(cx_ws_dispatcher, 100,  cowboy_tcp_transport,        [{port, 6788}], cowboy_http_protocol, [{dispatch, Dispatch}]),
 
+  io:format("cowboy started with result ~p ~n", [Res]),
   timer:send_after(?TIMER_INTERVAL_VIZ, send_to_viz),
 
   {ok, State}.

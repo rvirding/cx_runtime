@@ -15,25 +15,26 @@
 -module(concurix_trace_socket_handler).
 
 -behaviour(cowboy_http_handler).
--export([init/3,           handle/2,                             terminate/3]).
+-export([init/3,           handle/2,                             terminate/2]).
 
 
 -behaviour(cowboy_websocket_handler).
 -export([websocket_init/3, websocket_handle/3, websocket_info/3, websocket_terminate/3]).
 
-init({tcp, http}, _Req, [_Owner]) ->
-  {upgrade, protocol, cowboy_websocket}.
+init({tcp, http}, _Req, _Opts) ->
+  {upgrade, protocol, cowboy_http_websocket}.
 
 handle(_Req, State) ->
   {ok, Req2} = cowboy_http_req:reply(404, [{'Content-Type', <<"text/html">>}]),
   {ok, Req2, State}.
 
-terminate(_Reason, _Req, _State) ->
+terminate(_Req, _State) ->
   ok.
 
-websocket_init(tcp, Req, [_Owner]) ->
+websocket_init(_Any, Req, _Opt) ->
   gproc:reg({p, l, "benchrun_tracing"}),
-  {ok, Req, undefined}.
+  Req2 = cowboy_http_req:compact(Req),
+  {ok, Req2, undefined, hibernate}.
 
 websocket_handle({text, Msg}, Req, State) ->
   {reply, {text, << "responding to ", Msg/binary >>}, Req, State, hibernate };

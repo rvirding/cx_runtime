@@ -50,7 +50,7 @@ start(Filename, Options) ->
 internal_start(Config, Options) ->
   application:start(crypto),
   application:start(inets),
-  application:start(ranch),
+  %application:start(ranch),
   application:start(cowboy),
 
   application:start(gproc),
@@ -65,7 +65,6 @@ internal_start(Config, Options) ->
     true  ->
       %% Contact concurix.com and obtain Keys for S3
       RunInfo             = get_run_info(Config),
-
       gen_server:call(?MODULE, { start_tracer, RunInfo, Options });
 
     false ->
