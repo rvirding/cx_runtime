@@ -257,6 +257,7 @@ get_current_json(State) ->
                       {arity,           A}, 
                       local_process_info(Pid, reductions),
                       local_process_info(Pid, total_heap_size),
+                      local_process_info(Pid, message_queue_len),
                       term_to_b({service, Service}),
                       {scheduler,       Scheduler},
                       {behaviour,       Behaviour},
@@ -287,7 +288,7 @@ get_current_json(State) ->
 
   Run_id         = proplists:get_value(run_id, State#tcstate.runInfo),
 
-  Send           = [{version,           2},
+  Send           = [{version,           3},
                     {run_id,            list_to_binary(Run_id)},
                     {nodes,             TempProcs},
                     {links,             TempLinks},
@@ -422,6 +423,16 @@ local_process_info(Pid, total_heap_size) when is_pid(Pid) ->
 local_process_info(Pid, initial_call) when is_port(Pid) ->
   Info = erlang:port_info(Pid),
   {initial_call, {port, proplists:get_value(name, Info), 0}};
+  
+local_process_info(Pid, message_queue_len) when is_port(Pid) ->
+  {message_queue_len, 0};
+local_process_info(Pid, message_queue_len) when is_pid(Pid) ->
+  case process_info(Pid, message_queue_len) of
+    undefined ->
+      {message_queue_len, 0};
+    X ->
+      X
+  end;
 
 local_process_info({Pid, _X}, Key)     ->
   local_process_info(Pid, Key).
