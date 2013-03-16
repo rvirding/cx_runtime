@@ -35,8 +35,9 @@ init([State]) ->
   catch
     _Type:_Exception -> 
       io:format("~n"),
-      io:format("The tracer is started but a Concurix feature was not found~n"),
+      io:format("The tracer is started but a Concurix feature was not found.~n"),
       io:format("Upgrade to Concurix Erlang for more detailed tracing: http://www.concurix.com/main/products~n"),
+      io:format("This version will continue to work without the enhanced functionality.~n"),
       io:format("~n")
   end,
 
