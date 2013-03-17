@@ -40,7 +40,8 @@ init([State, Options]) ->
                  {proc, {concurix_trace_by_process,   start_link, [StateTrace]}, permanent, Terminate, worker, [concurix_trace_by_process]},
                  {prof, {concurix_trace_by_scheduler, start_link, [StateProf]},  permanent, Terminate, worker, [concurix_trace_by_scheduler]},
                  {viz,  {concurix_trace_send_to_viz,  start_link, [StateViz]},   permanent, Terminate, worker, [concurix_trace_send_to_viz]},
-                 {s3,   {concurix_trace_send_to_S3,   start_link, [StateS3]},    permanent, Terminate, worker, [concurix_trace_send_to_S3]}
+                 {s3,   {concurix_trace_send_to_S3,   start_link, [StateS3]},    permanent, Terminate, worker, [concurix_trace_send_to_S3]},
+                 {systemtap, {concurix_trace_by_systemtap, start_link, [State]}, permanent, Terminate, worker, [concurix_trace_by_systemtap]}
                ],
 
   {ok, {{one_for_one, 1, 60}, Children}}.
