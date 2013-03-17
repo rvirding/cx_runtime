@@ -27,7 +27,7 @@ start_link(State) ->
 
 init([State]) ->
   io:format("got systemtap init ~p ~n", [State]),
-  Port = open_port({spawn, "./loop.sh"}, [stream, {line, 2048}, eof]),
+  Port = open_port({spawn, code:lib_dir(concurix_runtime, priv) ++ "/loop.sh"}, [stream, {line, 2048}, eof]),
   io:format("Port = ~p ~n", [Port]),
   {ok, Port}.
 
