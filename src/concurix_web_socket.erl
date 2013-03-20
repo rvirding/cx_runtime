@@ -55,7 +55,6 @@ process_handshake_key(X) ->
   Req = [ token_to_kv(A) || A <- Tokens],
   Key = proplists:get_value("Sec-WebSocket-Key", Req),
   Challenge = base64:encode(crypto:sha(list_to_binary(Key ++ "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))),
-  io:format("key ~p challenge ~p ~n", [Key, Challenge]),
   binary_to_list(Challenge).
 
 token_to_kv(Token) ->
