@@ -50,8 +50,6 @@ start(Filename, Options) ->
 internal_start(Config, Options) ->
   application:start(crypto),
   application:start(inets),
-  application:start(ranch),
-  application:start(cowboy),
 
   application:start(gproc),
   application:start(ssl),

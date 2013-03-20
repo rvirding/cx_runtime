@@ -21,7 +21,7 @@
                           ]},
   {registered,            []},
   {included_applications, [erlcloud]},                  %% MDN Why included rather than dependent?
-  {applications,          [kernel, stdlib, crypto, ranch, cowboy, gproc]},
+  {applications,          [kernel, stdlib, crypto, gproc]},
   {env,                   []},
   {mod,                   {concurix_runtime_app, []}}
  ]}.

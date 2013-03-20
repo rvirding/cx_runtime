@@ -29,11 +29,13 @@ start_link(State) ->
 
 init([State]) ->
   %%                                {HostMatch, list({Path, Handler,                       Opts})}
-  Dispatch = cowboy_router:compile([{'_',       [    {"/",  concurix_trace_socket_handler, [self()]} ] } ]),
+  %%Dispatch = cowboy_router:compile([{'_',       [    {"/",  concurix_trace_socket_handler, [self()]} ] } ]),
 
   %%                Name, NbAcceptors, TransOpts,      ProtoOpts
-  cowboy:start_http(http, 10,          [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
-
+  %%cowboy:start_http(http, 10,          [{port, 6788}], [{env, [{dispatch, Dispatch}]}]),
+  
+  concurix_web_socket:start(),
+  
   timer:send_after(?TIMER_INTERVAL_VIZ, send_to_viz),
 
   {ok, State}.
