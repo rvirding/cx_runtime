@@ -16,51 +16,58 @@ acceptor(L)->
   %% Verify that the requester is establishing a web socket
   validate_websocket(S).
 
+%%
 %% A new connection has been established.
-%% Determine if it is, at least, consistent with a Concurix VIZ web-socket request
+%% Determine if it is minimally consistent with a Concurix VIZ web-socket request
+%%
 validate_websocket(S) ->
   % Indicate willingness to accept one TCP message
   inet:setopts(S, [{active, once}]),
 
   receive
     {tcp, S, Bin} -> 
-      io:format("~p:validate_websocket/1~n  ~p~n", [?MODULE, binary_to_list(Bin)]),
-
       case erlang:decode_packet(http, Bin, []) of
         { ok, {http_request, 'GET', {abs_path, "/"}, {1, 1}}, Rest } ->
-          validate_websocket_headers(S, Rest, false, false, undefined);
+          validate_websocket_headers(S, Rest, 0, 0, undefined);
 
         _ ->
           validate_websocket(S)
       end;
 
     {tcp_closed, S} ->
-      io:format("Socket ~p closed without a web-socket upgrade~n", [S]),
       ok
   end.
 
-validate_websocket_headers(S, Bin, Update, Connection, Key) ->
+validate_websocket_headers(S, Bin, UpgradeCount, ConnectionCount, Key) ->
   case erlang:decode_packet(httph, Bin, []) of
     {ok, {http_header, _, 'Upgrade', _, "websocket"}, Rest} ->
-      io:format("Upgrade:    websocket~n"),
-      validate_websocket_headers(S, Rest, true, Connection, Key);
+      validate_websocket_headers(S, Rest, UpgradeCount + 1, ConnectionCount, Key);
 
     {ok, {http_header, _, 'Connection', _, "Upgrade"}, Rest} ->
-      io:format("Connection: Upgrade~n"),
-      validate_websocket_headers(S, Rest, Update, true, Key);
+      validate_websocket_headers(S, Rest, UpgradeCount, ConnectionCount + 1, Key);
 
     {ok, {http_header, _, "Sec-Websocket-Key", _, Value}, Rest} ->
-      io:format("Sec-Websocket-Key: ~p~n", [Value]),
-      validate_websocket_headers(S, Rest, Update, Connection, Value);
+      validate_websocket_headers(S, Rest, UpgradeCount, ConnectionCount, Value);
 
     {ok, {http_header, _, _Field, _, _Value}, Rest} ->
-      validate_websocket_headers(S, Rest, Update, Connection, Key);
+      validate_websocket_headers(S, Rest, UpgradeCount, ConnectionCount, Key);
 
     {ok, http_eoh, _} ->
-      validate_websocket_headers_eval(S, Bin, Update, Connection, Key)
+      validate_websocket_headers_eval(S, Bin, UpgradeCount, ConnectionCount, Key);
+
+    _ ->
+      % Indicate willingness to receive one more message
+      inet:setopts(S, [{active, once}]),
+      validate_websocket(S)
   end.
 
-validate_websocket_headers_eval(S, _Bin, true, true, Key) when is_list(Key) ->
+
+
+%%
+%% All of the headers have been scanned.  Is this a plausible web-socket request?
+%%
+
+validate_websocket_headers_eval(S, _Bin, 1, 1, Key) when is_list(Key) ->
   GUID      = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11",                %% Per RFC4122
   Challenge = base64:encode(crypto:sha(list_to_binary(Key ++ GUID))),
 
@@ -95,7 +102,6 @@ validate_websocket_headers_eval(S, _Bin, _Update, _Connection, _Key) ->
 loop(S)->
   receive
     {tcp_closed, S} ->
-      io:format("Socket ~p closed~n", [S]),
       ok;
 
     {trace, Json} -> 
@@ -106,7 +112,7 @@ loop(S)->
 
       loop(S);
 
-    _Any ->
+    _ ->
       loop(S)
   end.
 
