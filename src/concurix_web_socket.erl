@@ -8,13 +8,19 @@ start() ->
 % Accepts multiple connections and handles them separately.
 acceptor(L)->
   %% This Erlang process will block until there is a connection request
-  {ok, S} = gen_tcp:accept(L),
+  case gen_tcp:accept(L) of
+    {ok, S} ->
 
-  %% Spawn a new Erlang process to listen for another connection request
-  spawn(fun()->acceptor(L) end),
+      %% Spawn a new Erlang process to listen for another connection request
+      spawn(fun() -> acceptor(L) end),
 
-  %% Verify that the requester is establishing a web socket
-  validate_websocket(S).
+      %% Verify that the requester is establishing a web socket
+      validate_websocket(S);
+
+    % The last acceptor may see L get closed
+    _ ->
+      ok
+  end.
 
 %%
 %% A new connection has been established.
