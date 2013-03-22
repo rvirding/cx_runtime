@@ -62,7 +62,7 @@ internal_start(Config, Options) ->
   case tracer_is_enabled(Options) of
     true  ->
       %% Contact concurix.com and obtain Keys for S3
-      RunInfo             = get_run_info(Config),
+      RunInfo = get_run_info(Config),
 
       gen_server:call(?MODULE, { start_tracer, RunInfo, Options });
 
