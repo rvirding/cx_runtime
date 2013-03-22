@@ -72,7 +72,7 @@ internal_start(Config, Options) ->
 
 stop() ->
   gen_server:call(?MODULE, stop_tracer),
-  application:stop(concurix_runtime).
+  ok.
 
 %%
 %% gen_server support
@@ -108,11 +108,11 @@ handle_call({start_tracer, RunInfo, Options},  _From, undefined) ->
   {reply, ok, State#tcstate{traceSupervisor = Sup}};
 
 handle_call({start_tracer, _Config, _Options}, _From, State) ->
-  io:format("~p:handle_call/3   start_tracer but already running~n", [?MODULE]),
+  io:format("~p:handle_call/3   start_tracer but tracer is already running~n", [?MODULE]),
   {reply, ok, State};
 
 handle_call(stop_tracer, _From, undefined) ->
-  io:format("~p:handle_call/3   stop_tracer but tracer is not running~n", [?MODULE]),
+  io:format("~p:handle_call/3   stop_tracer  but tracer is not running~n", [?MODULE]),
   {reply, ok, undefined};
 
 handle_call(stop_tracer, _From, State) ->
