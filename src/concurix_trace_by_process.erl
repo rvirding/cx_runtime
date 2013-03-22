@@ -86,11 +86,13 @@ handle_info({trace, Pid, exit, _Reason}, State) ->
   ets:safe_fixtable(State#tcstate.linkTable,      true),
   ets:safe_fixtable(State#tcstate.procLinkTable,  true),
 
-  ets:select_delete(State#tcstate.linkTable,    [ { {{'_', Pid}, '_', '_'}, [], [true]}, 
-                                                     { {{Pid, '_'}, '_', '_'}, [], [true] } ]),
-  ets:select_delete(State#tcstate.processTable, [ { {Pid, '_', '_', '_', '_'}, [], [true]}]),
-  ets:select_delete(State#tcstate.procLinkTable,    [ { {'_', Pid}, [], [true]}, 
-                                                      { {Pid, '_'}, [], [true] } ]),
+  ets:select_delete(State#tcstate.linkTable,       [ { {{'_', Pid}, '_', '_'},    [], [true] }, 
+                                                     { {{Pid, '_'}, '_', '_'},    [], [true] } ]),
+
+  ets:select_delete(State#tcstate.processTable,    [ { {Pid, '_', '_', '_', '_'}, [], [true] } ]),
+
+  ets:select_delete(State#tcstate.procLinkTable,   [ { {'_', Pid},                [], [true] }, 
+                                                     { {Pid, '_'},                [], [true] } ]),
 
   ets:safe_fixtable(State#tcstate.linkTable,     false),
   ets:safe_fixtable(State#tcstate.processTable,  false),
