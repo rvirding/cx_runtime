@@ -1,32 +1,14 @@
 -module(concurix_web_socket).
--compile(export_all).
-
+-export([start/0]).
 
 start() ->
-    io:format("trying to start ~n"),
     {ok, L} = gen_tcp:listen(6788, [binary, {active, true}, {reuseaddr, true}, {packet, 0}]),
-    io:format("got the listen to ~p ~n", [L]),
-    %%erlang:process_flag(trap_exit, true),
-    Pid = spawn_link(concurix_web_socket, acceptor, [L]).
-    %%receive
-    %%    {'EXIT', Pid, Why} -> 
-    %%        io:format("Process ~p exited with ~p. ~n", [Pid, Why]);
-    %%    Any -> 
-    %%        io:format("~p~n", [Any])
-    %% end.
+    spawn(fun() -> acceptor(L) end).
 
 % Accepts multiple connections and handles them separately.
 acceptor(L)->
     {ok, S} = gen_tcp:accept(L),
     spawn(fun()->acceptor(L) end),
-    handle(S).
-
-% Not really required, just a wrapper over handle/2 in case we want to do something later.
-handle(S)->
-    handle(S, []).
-
-handle(S, _Data)->
-    Pid = self(),
     gproc:reg({p, l, "benchrun_tracing"}),
     loop(S).
 
