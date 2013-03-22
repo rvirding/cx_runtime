@@ -87,6 +87,11 @@ validate_websocket_headers_eval(S, _Bin, _Update, _Connection, _Key) ->
   % Retry waiting for websocket request
   validate_websocket(S).
 
+
+%%
+%%
+%%
+
 loop(S)->
   receive
     {tcp_closed, S} ->
@@ -94,20 +99,17 @@ loop(S)->
       ok;
 
     {trace, Json} -> 
-      websocket_send_text(S, Json),
+      Opcode = websocket_opcode(text),
+      BinLen = payload_length_to_binary(iolist_size(Json)),
+
+      gen_tcp:send(S, [<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits >>, Json]),
+
       loop(S);
 
     _Any ->
       loop(S)
   end.
 
-websocket_send_text(Socket, Payload) ->
-  Opcode = websocket_opcode(text),
-  Len    = iolist_size(Payload),
-  BinLen = payload_length_to_binary(Len),
-
-  gen_tcp:send(Socket, [<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits >>, Payload]).
-        
 websocket_opcode(text)   ->  1;
 websocket_opcode(binary) ->  2;
 websocket_opcode(close)  ->  8;
@@ -116,7 +118,7 @@ websocket_opcode(pong)   -> 10.
 
 payload_length_to_binary(N) ->
   case N of
-      N when N =< 125 -> << N:7 >>;
-      N when N =< 16#ffff -> << 126:7, N:16 >>;
+      N when N =< 125                 -> << N:7 >>;
+      N when N =< 16#ffff             -> << 126:7, N:16 >>;
       N when N =< 16#7fffffffffffffff -> << 127:7, N:64 >>
   end.
