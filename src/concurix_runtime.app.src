@@ -15,7 +15,7 @@
                             concurix_trace_by_scheduler,
 
                             concurix_send_to_viz,
-                            concurix_trace_socket_handler,
+                            concurix_web_socket,
 
                             concurix_send_to_S3
                           ]},
