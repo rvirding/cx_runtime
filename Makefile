@@ -6,9 +6,6 @@ CXRUN_INSTALL_DIR    = $(DESTDIR)/lib/concurix_runtime-0.1
 GPROC_SRC_DIR        = deps/gproc
 GPROC_INSTALL_DIR    = $(DESTDIR)/lib/gproc-0.2.15
 
-ERLCLOUD_SRC_DIR     = deps/erlcloud
-ERLCLOUD_INSTALL_DIR = $(DESTDIR)/lib/erlcloud-0.4.1
-
 .PHONY: all erl test clean doc install release
 
 all: erl
@@ -28,13 +25,6 @@ clean:
 doc:
 	$(REBAR) doc
 
-install-erlcloud:
-	cd deps/erlcloud && make install
-	install -d $(ERLCLOUD_INSTALL_DIR)
-	install -d $(ERLCLOUD_INSTALL_DIR)/ebin
-	install -m 644 $(ERLCLOUD_SRC_DIR)/ebin/erlcloud.app $(ERLCLOUD_INSTALL_DIR)/ebin
-	install -m 644 $(ERLCLOUD_SRC_DIR)/ebin/*.beam       $(ERLCLOUD_INSTALL_DIR)/ebin
-
 install-gproc:
 	install -d $(GPROC_INSTALL_DIR)
 	install -d $(GPROC_INSTALL_DIR)/doc
@@ -49,7 +39,7 @@ install-cx-runtime:
 	install -m 644 ebin/concurix_runtime.app             $(CXRUN_INSTALL_DIR)/ebin
 	install -m 644 ebin/*.beam                           $(CXRUN_INSTALL_DIR)/ebin
 
-install: install-erlcloud install-gproc install-cx-runtime
+install: install-gproc install-cx-runtime
 
 
 release:

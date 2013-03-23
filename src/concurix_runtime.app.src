@@ -24,7 +24,7 @@
                             jsx_format
                           ]},
   {registered,            []},
-  {included_applications, [erlcloud]},                  %% MDN Why included rather than dependent?
+  {included_applications, []},
   {applications,          [kernel, stdlib, crypto, gproc]},
   {env,                   []},
   {mod,                   {concurix_runtime_app, []}}
