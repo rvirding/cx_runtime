@@ -47,19 +47,19 @@ validate_websocket(S) ->
 validate_websocket_headers(S, Bin, UpgradeCount, ConnectionCount, Key) ->
   case erlang:decode_packet(httph, Bin, []) of
     {ok, {http_header, _, 'Upgrade', _, "websocket"}, Rest} ->
-      validate_websocket_headers(S, Rest, UpgradeCount + 1, ConnectionCount, Key);
+      validate_websocket_headers(S, Rest, UpgradeCount + 1, ConnectionCount,     Key);
 
     {ok, {http_header, _, 'Connection', _, "Upgrade"}, Rest} ->
-      validate_websocket_headers(S, Rest, UpgradeCount, ConnectionCount + 1, Key);
+      validate_websocket_headers(S, Rest, UpgradeCount,     ConnectionCount + 1, Key);
 
     {ok, {http_header, _, "Sec-Websocket-Key", _, Value}, Rest} ->
-      validate_websocket_headers(S, Rest, UpgradeCount, ConnectionCount, Value);
+      validate_websocket_headers(S, Rest, UpgradeCount,     ConnectionCount,     Value);
 
     {ok, {http_header, _, _Field, _, _Value}, Rest} ->
-      validate_websocket_headers(S, Rest, UpgradeCount, ConnectionCount, Key);
+      validate_websocket_headers(S, Rest, UpgradeCount,     ConnectionCount,     Key);
 
     {ok, http_eoh, _} ->
-      validate_websocket_headers_eval(S, Bin, UpgradeCount, ConnectionCount, Key);
+      validate_websocket_headers_eval(S, Bin, UpgradeCount, ConnectionCount,     Key);
 
     _ ->
       % Indicate willingness to receive one more message
