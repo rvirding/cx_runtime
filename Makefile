@@ -6,9 +6,6 @@ CXRUN_INSTALL_DIR    = $(DESTDIR)/lib/concurix_runtime-0.1
 GPROC_SRC_DIR        = deps/gproc
 GPROC_INSTALL_DIR    = $(DESTDIR)/lib/gproc-0.2.15
 
-MOCHI_SRC_DIR        = deps/mochiweb
-MOCHI_INSTALL_DIR    = $(DESTDIR)/lib/mochiweb-2.3.0
-
 ERLCLOUD_SRC_DIR     = deps/erlcloud
 ERLCLOUD_INSTALL_DIR = $(DESTDIR)/lib/erlcloud-0.4.1
 
@@ -31,9 +28,6 @@ clean:
 doc:
 	$(REBAR) doc
 
-
-
-
 install-erlcloud:
 	cd deps/erlcloud && make install
 	install -d $(ERLCLOUD_INSTALL_DIR)
@@ -49,28 +43,19 @@ install-gproc:
 	install -m 644 $(GPROC_SRC_DIR)/ebin/gproc.app       $(GPROC_INSTALL_DIR)/ebin
 	install -m 644 $(GPROC_SRC_DIR)/ebin/*.beam          $(GPROC_INSTALL_DIR)/ebin
 
-install-mochiweb:
-	install -d $(MOCHI_INSTALL_DIR)
-	install -d $(MOCHI_INSTALL_DIR)/ebin
-	install -m 644 $(MOCHI_SRC_DIR)/ebin/mochiweb.app    $(MOCHI_INSTALL_DIR)/ebin
-	install -m 644 $(MOCHI_SRC_DIR)/ebin/*.beam          $(MOCHI_INSTALL_DIR)/ebin
-
 install-cx-runtime: 
 	install -d $(CXRUN_INSTALL_DIR)
 	install -d $(CXRUN_INSTALL_DIR)/ebin
 	install -m 644 ebin/concurix_runtime.app             $(CXRUN_INSTALL_DIR)/ebin
 	install -m 644 ebin/*.beam                           $(CXRUN_INSTALL_DIR)/ebin
 
-install: install-erlcloud install-gproc install-mochiweb install-cx-runtime
-
-
+install: install-erlcloud install-gproc install-cx-runtime
 
 
 release:
 	scripts/release
 
 install-cx-boot: install
-	install scripts/concurix_runtime.boot             $(DESTDIR)/bin
-	install scripts/concurix_runtime.boot             $(DESTDIR)/releases/R15B02
-	install scripts/concurix_runtime.script           $(DESTDIR)/releases/R15B02
-
+	install scripts/concurix_runtime.boot                $(DESTDIR)/bin
+	install scripts/concurix_runtime.boot                $(DESTDIR)/releases/R15B02
+	install scripts/concurix_runtime.script              $(DESTDIR)/releases/R15B02

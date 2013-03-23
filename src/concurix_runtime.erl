@@ -293,8 +293,7 @@ get_current_json(State) ->
                     {proclinks,         ProcLinks},
                     {schedulers,        Schedulers}],
 
-  list_to_binary(lists:flatten(mochijson2:encode([{data, Send}]))).
-
+  jsx_eep0018:term_to_json([{data, Send}], []).
  
   
 
