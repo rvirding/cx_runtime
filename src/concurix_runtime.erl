@@ -292,8 +292,11 @@ get_current_json(State) ->
                     {links,             TempLinks},
                     {proclinks,         ProcLinks},
                     {schedulers,        Schedulers}],
+
+  list_to_binary(lists:flatten(mochijson2:encode([{data, Send}]))).
+
  
-  lists:flatten(mochijson2:encode([{data, Send}])).
+  
 
 
 validate_tables(Procs, Links, _State) ->

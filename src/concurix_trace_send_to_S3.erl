@@ -55,9 +55,7 @@ handle_info(send_snapshot, State) ->
   Url                 = proplists:get_value(trace_url, RunInfo),
   Fields              = snapshot_fields(RunInfo),
   Json                = concurix_runtime:get_current_json(State),
-  Data                = list_to_binary(Json),
-
-  Request             = erlcloud_s3:make_post_http_request(Url, Fields, Data),
+  Request             = erlcloud_s3:make_post_http_request(Url, Fields, Json),
 
   httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
 
