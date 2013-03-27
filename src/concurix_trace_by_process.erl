@@ -162,7 +162,7 @@ handle_info({trace, _Pid, register,         _Srv},  State) ->
 
 handle_info(stop_tracing,                           State) ->
   erlang:trace(all, false, []),
-  {noreply, State};
+  {stop, normal, State};
 
 handle_info(Msg,                                    State) ->
   io:format("~p:handle_info/2.  Unsupported msg = ~p ~n", [?MODULE, Msg]),

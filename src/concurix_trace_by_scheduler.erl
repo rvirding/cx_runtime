@@ -51,7 +51,7 @@ handle_cast(_Msg, State) ->
  
 handle_info(stop_tracing,                           State) ->
   erlang:system_profile(undefined, [concurix]),
-  {noreply, State};
+  {stop, normal, State};
 
 handle_info(_Msg, State) ->
   {noreply, State}.
