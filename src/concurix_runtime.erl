@@ -82,6 +82,8 @@ start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
+  concurix_web_socket:start(),
+  
   {ok, undefined}.
 
 handle_call({start_tracer, RunInfo, Options},  _From, undefined) ->

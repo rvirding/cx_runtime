@@ -28,8 +28,6 @@ start_link(State) ->
   gen_server:start_link(?MODULE, [State], []).
 
 init([State]) ->
-  concurix_web_socket:start(),
-  
   timer:send_after(?TIMER_INTERVAL_VIZ, send_to_viz),
 
   {ok, State}.
