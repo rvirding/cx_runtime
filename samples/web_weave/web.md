@@ -16,6 +16,6 @@ the center of the tree.
 To see the rise and fall of a 3-branched 9-levels tree with one second lapse
 between each death-step:
 
-    web:weave(9, 3, 1000).
+    web:weave(3, 3, 1000).
 
 The number of processes created will be 3^9 = 19683.
