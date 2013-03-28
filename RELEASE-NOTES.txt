@@ -1,0 +1,26 @@
+March 16:
+
+First release as a public repository
+
+
+
+March 28:
+
+The first release relied on a small number of popular 3rd party packages such as
+cowboy, ranch, erlcloud, and mochiweb.  In each case we relied on the latest
+stable version.
+
+Several users reported problems integrating cx_runtime in to larger on-going projects
+that relied on one or more of the same 3rd party packages because they were using
+a different version of the library.
+
+In some cases we had created a dependency on a 3rd party package that provided
+significant functionality even though we might only draw on a handful of functions
+from that package.
+
+
+The primary goal of this release is to dramatically reduce the number of dependencies
+by a focus on the core functionality that we actually needed.
+
+
+
