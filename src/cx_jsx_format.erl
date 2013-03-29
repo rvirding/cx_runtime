@@ -21,20 +21,20 @@
 %% THE SOFTWARE.
 
 
-%% @hidden hide this module from edoc, exported functions are internal to jsx
+%% @hidden hide this module from edoc, exported functions are internal to cx_jsx
 %%   and may be altered or removed without notice
 
--module(jsx_format).
+-module(cx_jsx_format).
 
 -export([format/2]).
 
--include("./include/jsx_common.hrl").
--include("./include/jsx_format.hrl").
+-include("./include/cx_jsx_common.hrl").
+-include("./include/cx_jsx_format.hrl").
 
 -spec format(JSON::binary(), Opts::format_opts()) -> binary() | iolist().
     
 format(JSON, Opts) when is_binary(JSON) ->
-    P = jsx:parser(extract_parser_opts(Opts)),
+    P = cx_jsx:parser(extract_parser_opts(Opts)),
     format(fun() -> P(JSON) end, Opts);
 
 format(F, OptsList) when is_function(F) ->

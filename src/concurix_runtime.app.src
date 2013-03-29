@@ -19,9 +19,9 @@
 
                             concurix_send_to_S3,
 
-                            jsx,
-                            jsx_eep0018,
-                            jsx_format
+                            cx_jsx,
+                            cx_jsx_eep0018,
+                            cx_jsx_format
                           ]},
   {registered,            []},
   {included_applications, []},

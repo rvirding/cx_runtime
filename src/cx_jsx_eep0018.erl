@@ -21,19 +21,19 @@
 %% THE SOFTWARE.
 
 
-%% @hidden hide this module from edoc, exported functions are internal to jsx
+%% @hidden hide this module from edoc, exported functions are internal to cx_jsx
 %%   and may be altered or removed without notice
 
--module(jsx_eep0018).
+-module(cx_jsx_eep0018).
 
 -export([json_to_term/2, term_to_json/2]).
 
--include("./include/jsx_common.hrl").
+-include("./include/cx_jsx_common.hrl").
 
 -spec json_to_term(JSON::binary(), Opts::decoder_opts()) -> eep0018().
 
 json_to_term(JSON, Opts) ->
-  P = jsx:parser(opts_to_jsx_opts(Opts)),
+  P = cx_jsx:parser(opts_to_cx_jsx_opts(Opts)),
 
   case proplists:get_value(strict, Opts, true) of
     true  -> collect_strict(P(JSON), [[]], Opts);
@@ -42,30 +42,30 @@ json_to_term(JSON, Opts) ->
     
 
 %% parse opts for the decoder
-opts_to_jsx_opts(Opts) ->
-  opts_to_jsx_opts(Opts, []).
+opts_to_cx_jsx_opts(Opts) ->
+  opts_to_cx_jsx_opts(Opts, []).
     
-opts_to_jsx_opts([{encoding, Val}|Rest], Acc) ->
+opts_to_cx_jsx_opts([{encoding, Val}|Rest], Acc) ->
   case lists:member(Val, [auto, utf8, utf16, {utf16, little}, utf32, {utf32, little}]) of
-    true  -> opts_to_jsx_opts(Rest, [{encoding, Val}] ++ Acc);
-    false -> opts_to_jsx_opts(Rest, Acc)
+    true  -> opts_to_cx_jsx_opts(Rest, [{encoding, Val}] ++ Acc);
+    false -> opts_to_cx_jsx_opts(Rest, Acc)
   end;
 
-opts_to_jsx_opts([{comments, Val}|Rest], Acc) ->
+opts_to_cx_jsx_opts([{comments, Val}|Rest], Acc) ->
   case Val of
-    true  -> opts_to_jsx_opts(Rest, [{comments, true}]  ++ Acc);
-    false -> opts_to_jsx_opts(Rest, [{comments, false}] ++ Acc);
-     _    -> opts_to_jsx_opts(Rest, Acc)
+    true  -> opts_to_cx_jsx_opts(Rest, [{comments, true}]  ++ Acc);
+    false -> opts_to_cx_jsx_opts(Rest, [{comments, false}] ++ Acc);
+     _    -> opts_to_cx_jsx_opts(Rest, Acc)
   end;
 
-opts_to_jsx_opts([_|Rest], Acc) ->
-  opts_to_jsx_opts(Rest, Acc);
+opts_to_cx_jsx_opts([_|Rest], Acc) ->
+  opts_to_cx_jsx_opts(Rest, Acc);
 
-opts_to_jsx_opts([], Acc) ->
+opts_to_cx_jsx_opts([], Acc) ->
   Acc.
 
 
-%% ensure the first jsx event we get is start_object or start_array when running in strict mode
+%% ensure the first cx_jsx event we get is start_object or start_array when running in strict mode
 collect_strict({event, Start, Next}, Acc, Opts) 
   when Start =:= start_object; Start =:= start_array ->
     collect(Next(), [[]|Acc], Opts);
@@ -144,7 +144,7 @@ decode_key_repeats( Key, [_             |  Rest]) -> decode_key_repeats(Key, Res
 decode_key_repeats(_Key, [])                      -> false.
 
     
-%% helper functions for converting jsx events to eep0018 formats 
+%% helper functions for converting cx_jsx events to eep0018 formats 
 event({string, String}, _Opts) ->
   unicode:characters_to_binary(String);
 
@@ -191,9 +191,9 @@ event({literal, Literal}, _Opts) ->
 
 
 
-%% the jsx formatter (pretty printer) can do most of the heavy lifting in 
-%%   converting erlang terms to json strings, but it expects a jsx event 
-%%   iterator. luckily, the mapping from erlang terms to jsx events is 
+%% the cx_jsx formatter (pretty printer) can do most of the heavy lifting in 
+%%   converting erlang terms to json strings, but it expects a cx_jsx event 
+%%   iterator. luckily, the mapping from erlang terms to cx_jsx events is 
 %%   straightforward and the iterator can be faked with an anonymous function
 
 -spec term_to_json(JSON::eep0018(), Opts::encoder_opts()) -> binary().
@@ -207,11 +207,11 @@ term_to_json(List, Opts) ->
 
   Encoding = proplists:get_value(encoding, Opts, utf8),
 
-  jsx:format(jsx:eventify(lists:reverse([end_json] ++ term_to_events(List))),
+  cx_jsx:format(cx_jsx:eventify(lists:reverse([end_json] ++ term_to_events(List))),
              [{output_encoding, Encoding}] ++ Opts).
     
 
-%% convert eep0018 representation to jsx events. note special casing for the empty object
+%% convert eep0018 representation to cx_jsx events. note special casing for the empty object
 term_to_events([{}]) ->
   [end_object, start_object];
 
