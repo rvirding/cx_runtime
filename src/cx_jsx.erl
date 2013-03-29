@@ -24,9 +24,9 @@
 %% @author Alisdair Sullivan <alisdairsullivan@yahoo.ca>
 %% @copyright 2010 Alisdair Sullivan
 %% @version 0.9.0
-%% @doc this module defines the interface to the jsx json parsing library
+%% @doc this module defines the interface to the cx_jsx json parsing library
 
--module(jsx).
+-module(cx_jsx).
 
 %% the core parser api
 -export([parser/0, parser/1]).
@@ -36,16 +36,16 @@
 -export([format/1, format/2]).
 -export([eventify/1]).
 
--include("./include/jsx_common.hrl").
+-include("./include/cx_jsx_common.hrl").
 
-%% @type jsx_parser() = (binary()) -> jsx_parser_result().
+%% @type cx_jsx_parser() = (binary()) -> cx_jsx_parser_result().
 
-%% @type jsx_parser_result() = {event, jsx_event(), (() -> jsx_parser_result())}
-%%    | {incomplete, jsx_parser()}
+%% @type cx_jsx_parser_result() = {event, cx_jsx_event(), (() -> cx_jsx_parser_result())}
+%%    | {incomplete, cx_jsx_parser()}
 %%    | {error, badjson}
 %%    | {error, badarg}.
 
-%% @type jsx_event() = start_object
+%% @type cx_jsx_event() = start_object
 %%    | end_object
 %%    | start_array
 %%    | end_array
@@ -60,8 +60,8 @@
 
 %% @type unicode_string() = [integer()].
 
-%% @type jsx_opts() = [jsx_opt()].
-%% @type jsx_opt() = {comments, true | false}
+%% @type cx_jsx_opts() = [cx_jsx_opt()].
+%% @type cx_jsx_opt() = {comments, true | false}
 %%    | {escaped_unicode, ascii | codepoint | none}
 %%    | {multi_term, true | false}
 %%    | {encoding, auto | supported_utf()}.
@@ -125,15 +125,15 @@
 %%    | {output_encoding, supported_utf()}.
 
 
-%% @spec parser() -> jsx_parser()
+%% @spec parser() -> cx_jsx_parser()
 %% @equiv parser([])
 
--spec parser() -> jsx_parser().
+-spec parser() -> cx_jsx_parser().
 
 parser() ->
     parser([]).
     
-%% @spec parser(Opts::jsx_opts()) -> jsx_parser()    
+%% @spec parser(Opts::cx_jsx_opts()) -> cx_jsx_parser()    
 %% @doc
 %% produces a function which takes a binary which may or may not represent an 
 %% encoded json document and returns a generator
@@ -174,15 +174,15 @@ parser() ->
 %%      </ul>
 %% @end
 
--spec parser(OptsList::jsx_opts()) -> jsx_parser().
+-spec parser(OptsList::cx_jsx_opts()) -> cx_jsx_parser().
 
 parser(OptsList) ->
     case proplists:get_value(encoding, OptsList, auto) of
-        utf8            -> jsx_utf8:parser(OptsList);
-        utf16           -> jsx_utf16:parser(OptsList);
-        utf32           -> jsx_utf32:parser(OptsList);
-        {utf16, little} -> jsx_utf16le:parser(OptsList);
-        {utf32, little} -> jsx_utf32le:parser(OptsList);
+        utf8            -> cx_jsx_utf8:parser(OptsList);
+        utf16           -> cx_jsx_utf16:parser(OptsList);
+        utf32           -> cx_jsx_utf32:parser(OptsList);
+        {utf16, little} -> cx_jsx_utf16le:parser(OptsList);
+        {utf32, little} -> cx_jsx_utf32le:parser(OptsList);
         auto            -> detect_encoding(OptsList)
     end.
     
@@ -247,7 +247,7 @@ json_to_term(JSON) ->
 -spec json_to_term(JSON::binary(), Opts::decoder_opts()) -> eep0018(). 
 
 json_to_term(JSON, Opts) ->
-    jsx_eep0018:json_to_term(JSON, Opts).
+    cx_jsx_eep0018:json_to_term(JSON, Opts).
 
 
 %% @spec term_to_json(JSON::eep0018()) -> binary()
@@ -298,7 +298,7 @@ term_to_json(JSON) ->
 -spec term_to_json(JSON::eep0018(), Opts::encoder_opts()) -> binary().        
 
 term_to_json(JSON, Opts) ->
-    jsx_eep0018:term_to_json(JSON, Opts).
+    cx_jsx_eep0018:term_to_json(JSON, Opts).
 
 
 %% @spec is_json(JSON::binary()) -> true | false
@@ -340,7 +340,7 @@ is_json(JSON) ->
 -spec is_json(JSON::binary(), Opts::verify_opts()) -> true | false.
 
 is_json(JSON, Opts) ->
-    jsx_verify:is_json(JSON, Opts).
+    cx_jsx_verify:is_json(JSON, Opts).
 
 
 %% @spec format(JSON::binary()) -> binary()
@@ -405,15 +405,15 @@ format(JSON) ->
 -spec format(JSON::binary(), Opts::format_opts()) -> binary() | iolist().
 
 format(JSON, Opts) ->
-    jsx_format:format(JSON, Opts).
+    cx_jsx_format:format(JSON, Opts).
     
 
-%% @spec eventify(List::list()) -> jsx_parser_result()
-%% @doc fake the jsx api for any list. useful if you want to serialize a 
+%% @spec eventify(List::list()) -> cx_jsx_parser_result()
+%% @doc fake the cx_jsx api for any list. useful if you want to serialize a 
 %% structure to json using the pretty printer, or verify a sequence could be 
 %% valid json
 
--spec eventify(List::list()) -> jsx_parser_result().
+-spec eventify(List::list()) -> cx_jsx_parser_result().
 
 eventify([]) ->
     fun() -> 
@@ -442,43 +442,43 @@ detect_encoding(OptsList) ->
     
 %% utf8 bom detection    
 detect_encoding(<<16#ef, 16#bb, 16#bf, Rest/binary>>, Opts) -> 
-    (jsx_utf8:parser(Opts))(Rest);    
+    (cx_jsx_utf8:parser(Opts))(Rest);    
 
 %% utf32-little bom detection (this has to come before utf16-little or it'll  match that)
 detect_encoding(<<16#ff, 16#fe, 0, 0, Rest/binary>>, Opts) -> 
-    (jsx_utf32le:parser(Opts))(Rest);        
+    (cx_jsx_utf32le:parser(Opts))(Rest);        
 
 %% utf16-big bom detection
 detect_encoding(<<16#fe, 16#ff, Rest/binary>>, Opts) -> 
-    (jsx_utf16:parser(Opts))(Rest);
+    (cx_jsx_utf16:parser(Opts))(Rest);
 
 %% utf16-little bom detection
 detect_encoding(<<16#ff, 16#fe, Rest/binary>>, Opts) -> 
-    (jsx_utf16le:parser(Opts))(Rest);
+    (cx_jsx_utf16le:parser(Opts))(Rest);
 
 %% utf32-big bom detection
 detect_encoding(<<0, 0, 16#fe, 16#ff, Rest/binary>>, Opts) -> 
-    (jsx_utf32:parser(Opts))(Rest);
+    (cx_jsx_utf32:parser(Opts))(Rest);
     
 %% utf32-little null order detection
 detect_encoding(<<X, 0, 0, 0, _Rest/binary>> = JSON, Opts) when X =/= 0 ->
-    (jsx_utf32le:parser(Opts))(JSON);
+    (cx_jsx_utf32le:parser(Opts))(JSON);
 
 %% utf32-big null order detection
 detect_encoding(<<0, 0, 0, X, _Rest/binary>> = JSON, Opts) when X =/= 0 ->
-    (jsx_utf32:parser(Opts))(JSON);
+    (cx_jsx_utf32:parser(Opts))(JSON);
 
 %% utf16-little null order detection
 detect_encoding(<<X, 0, _, 0, _Rest/binary>> = JSON, Opts) when X =/= 0 ->
-    (jsx_utf16le:parser(Opts))(JSON);
+    (cx_jsx_utf16le:parser(Opts))(JSON);
 
 %% utf16-big null order detection
 detect_encoding(<<0, X, 0, _, _Rest/binary>> = JSON, Opts) when X =/= 0 ->
-    (jsx_utf16:parser(Opts))(JSON);
+    (cx_jsx_utf16:parser(Opts))(JSON);
 
 %% utf8 null order detection
 detect_encoding(<<X, Y, _Rest/binary>> = JSON, Opts) when X =/= 0, Y =/= 0 ->
-    (jsx_utf8:parser(Opts))(JSON);
+    (cx_jsx_utf8:parser(Opts))(JSON);
     
 %% a problem, to autodetect naked single digits' encoding, there is not enough 
 %%   data to conclusively determine the encoding correctly. below is an attempt 
@@ -487,7 +487,7 @@ detect_encoding(<<X>>, Opts) when X =/= 0 ->
     {incomplete,
         fun(end_stream) ->
                 try
-                    {incomplete, Next} = (jsx_utf8:parser(Opts))(<<X>>),
+                    {incomplete, Next} = (cx_jsx_utf8:parser(Opts))(<<X>>),
                     Next(end_stream)
                     catch error:function_clause -> {error, badjson}
                 end;
@@ -499,7 +499,7 @@ detect_encoding(<<0, X>>, Opts) when X =/= 0 ->
     {incomplete,
         fun(end_stream) ->
                 try
-                    {incomplete, Next} = (jsx_utf16:parser(Opts))(<<0, X>>),
+                    {incomplete, Next} = (cx_jsx_utf16:parser(Opts))(<<0, X>>),
                     Next(end_stream)
                     catch error:function_clause -> {error, badjson}
                 end;
@@ -511,7 +511,7 @@ detect_encoding(<<X, 0>>, Opts) when X =/= 0 ->
     {incomplete,
         fun(end_stream) ->
                 try
-                    {incomplete, Next} = (jsx_utf16le:parser(Opts))(<<X, 0>>),
+                    {incomplete, Next} = (cx_jsx_utf16le:parser(Opts))(<<X, 0>>),
                     Next(end_stream)
                     catch error:function_clause -> {error, badjson}
                 end;

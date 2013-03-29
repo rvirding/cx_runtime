@@ -295,7 +295,7 @@ get_current_json(State) ->
                     {proclinks,         ProcLinks},
                     {schedulers,        Schedulers}],
 
-  jsx_eep0018:term_to_json([{data, Send}], []).
+  cx_jsx_eep0018:term_to_json([{data, Send}], []).
  
   
 

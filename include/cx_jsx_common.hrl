@@ -31,8 +31,8 @@
 ).
 
 
--type jsx_opts() :: [jsx_opt()].
--type jsx_opt() :: {comments, true | false}                                                            |
+-type cx_jsx_opts() :: [cx_jsx_opt()].
+-type cx_jsx_opt() :: {comments, true | false}                                                            |
                    {escaped_unicode, ascii | codepoint | none}                                         |
                    {multi_term, true | false}                                                          |
                    {encoding, auto | utf8 | utf16 | {utf16, little} | utf32  | {utf32, little} }.
@@ -42,7 +42,7 @@
 -type unicode_codepoint() :: 0..16#10ffff.
 -type unicode_string()    :: [unicode_codepoint()].
 
--type jsx_event() :: start_object                                                                      |
+-type cx_jsx_event() :: start_object                                                                      |
                      end_object                                                                        |
                      start_array                                                                       |
                      end_array                                                                         |
@@ -57,10 +57,10 @@
     
     
 %% this probably doesn't work properly
--type jsx_parser() :: fun((binary()) -> jsx_parser_result()).
+-type cx_jsx_parser() :: fun((binary()) -> cx_jsx_parser_result()).
 
--type jsx_parser_result() :: {event, jsx_event(), fun(() -> jsx_parser_result())}                      |
-                             {incomplete, jsx_parser()}                                                |
+-type cx_jsx_parser_result() :: {event, cx_jsx_event(), fun(() -> cx_jsx_parser_result())}                      |
+                             {incomplete, cx_jsx_parser()}                                                |
                              {error, badjson}.
 
 
