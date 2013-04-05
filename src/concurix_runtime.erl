@@ -378,7 +378,7 @@ term_to_b(Term) ->
 %%
  
 local_process_info(Pid, reductions) when is_pid(Pid) ->
-  case process_info(Pid, reductions) of
+  case careful_process_info(Pid, reductions) of
     undefined ->
       {reductions, 1};
 
@@ -387,7 +387,7 @@ local_process_info(Pid, reductions) when is_pid(Pid) ->
    end;
 
 local_process_info(Pid, initial_call) when is_pid(Pid) ->
-  case process_info(Pid, initial_call) of
+  case careful_process_info(Pid, initial_call) of
     undefined ->
       {initial_call, {unknown, unknown, 0}};
 
@@ -396,7 +396,7 @@ local_process_info(Pid, initial_call) when is_pid(Pid) ->
   end;
 
 local_process_info(Pid, current_function) when is_pid(Pid) ->
-  case process_info(Pid, current_function) of
+  case careful_process_info(Pid, current_function) of
     undefined ->
       {current_function, {unknown, unknown, 0}};
 
@@ -414,7 +414,7 @@ local_process_info(Pid, total_heap_size) when is_port(Pid) ->
   {total_heap_size, 1};
 
 local_process_info(Pid, total_heap_size) when is_pid(Pid) ->
-  case process_info(Pid, total_heap_size) of
+  case careful_process_info(Pid, total_heap_size) of
     undefined ->
       {total_heap_size, 1};
 
@@ -428,8 +428,9 @@ local_process_info(Pid, initial_call) when is_port(Pid) ->
   
 local_process_info(Pid, message_queue_len) when is_port(Pid) ->
   {message_queue_len, 0};
+
 local_process_info(Pid, message_queue_len) when is_pid(Pid) ->
-  case process_info(Pid, message_queue_len) of
+  case careful_process_info(Pid, message_queue_len) of
     undefined ->
       {message_queue_len, 0};
     X ->
@@ -554,9 +555,22 @@ fill_initial_proclinktable(Table, [P | Tail]) ->
   
 get_proc_links(Proc) ->
     %% Returns a list of linked processes.
-    case process_info(Proc, links) of
+    case careful_process_info(Proc, links) of
         {links, Plinks} ->
             [P || P <- Plinks, is_pid(P)];
         _ ->
             []
     end.
+
+%%
+%% process_info is defined to throw an exception if Pid is not local
+%%
+%% This version verifies that the PID is for the current node
+%% The callers to this function already have business logic for 'undefined'
+%%
+careful_process_info(Pid, Item) when node(Pid) =:= node() ->
+  process_info(Pid, Item);
+
+careful_process_info(_Pid, _Item) ->
+  undefined.
+
