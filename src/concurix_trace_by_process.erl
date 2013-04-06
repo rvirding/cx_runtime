@@ -157,15 +157,18 @@ handle_info({trace, Pid, unlink,           Pid2}, State) ->
   delete_proc_link(State, Pid, Pid2),
   {noreply, State};
 
-handle_info({trace, _Pid, register,         _Srv},  State) ->
+handle_info({trace, _Pid, register,        _Srv}, State) ->
   {noreply, State};
 
-handle_info(stop_tracing,                           State) ->
+handle_info({trace, _Pid, unregister,      _Srv}, State) ->
+  {noreply, State};
+
+handle_info(stop_tracing,                         State) ->
   erlang:trace(all, false, []),
   {stop, normal, State};
 
 handle_info(Msg,                                    State) ->
-  io:format("~p:handle_info/2.  Unsupported msg = ~p ~n", [?MODULE, Msg]),
+  io:format("~p:handle_info/2.  [Warning] Unsupported msg = ~p ~n", [?MODULE, Msg]),
   {noreply, State}.
 
 decode_anon_fun(Fun) ->
