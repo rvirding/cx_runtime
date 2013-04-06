@@ -59,6 +59,8 @@ handle_info(send_snapshot, State) ->
 
   httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
 
+  concurix_runtime:print_event_times(State),
+
   {noreply, State};
 
 handle_info(stop_updating,                           State) ->

@@ -6,9 +6,12 @@
           linkTable, 
           sysProfTable, 
           procLinkTable, 
+          eventTimeTable,
 
           traceSupervisor,
 
           collectTraceData,
-          sendUpdates 
+          sendUpdates,
+
+          processCounter
         }).

@@ -22,6 +22,8 @@
 
 -export([update_process_info/1, mod_to_service/1, local_translate_initial_call/1, get_current_json/1, mod_to_behaviour/1]).
 
+-export([print_event_times/1]).
+
 -include("concurix_runtime.hrl").
 
 
@@ -96,11 +98,14 @@ handle_call({start_tracer, RunInfo, Options},  _From, undefined) ->
                        linkTable        = setup_ets_table(cx_linkstats),
                        sysProfTable     = setup_ets_table(cx_sysprof),
                        procLinkTable    = setup_ets_table(cx_proclink),
+                       eventTimeTable   = setup_ets_table(cx_eventtime),
 
                        traceSupervisor  = undefined,
 
                        collectTraceData = undefined,
-                       sendUpdates      = undefined
+                       sendUpdates      = undefined,
+
+                       processCounter   = 0
                       },
 
   fill_initial_tables(State),
@@ -348,7 +353,23 @@ update_process_info([Pid | T], Acc) ->
   NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service, 1, Behave}],
 
   update_process_info(T, NewAcc).
-  
+
+
+print_event_times(State) ->  
+    Table = State#tcstate.eventTimeTable,
+    lists:foreach(fun({MFA, N, SumX, SumY, SumXSquared, SumYSquared, SumXY}) ->
+                          case linear_regression:fit_sums(N, SumX, SumY,
+                                                          SumXSquared,
+                                                          SumYSquared,
+                                                          SumXY) of
+                              undefined ->
+                                  ok;
+                              {Slope, Intercept, CC} when abs(CC) > 0.9 ->
+                                  io:format("Correlation coefficient of ~.2f for ~p: t = ~.2f * x + ~.2f~n", [CC, MFA, Slope, Intercept]);
+                              _ ->
+                                  ok
+                          end
+                  end, ets:tab2list(Table)).
 
 
 pid_to_b(Pid) ->
@@ -535,12 +556,20 @@ path_to_service(Path) ->
 
 fill_initial_tables(State) ->
   Processes = processes(),
-  fill_initial_proctable(State#tcstate.processTable, Processes),
-  fill_initial_proclinktable(State#tcstate.procLinkTable, Processes).
+  State1 = fill_initial_proctable(State, Processes),
+  fill_initial_proclinktable(State1#tcstate.procLinkTable, Processes),
+  State1.
   
-fill_initial_proctable(Table, Processes) ->
+fill_initial_proctable(State, Processes) ->
+  Table = State#tcstate.processTable,
   ProcList = update_process_info(Processes, []),
-  lists:foreach(fun(P) -> ets:insert(Table, P) end, ProcList).
+  CounterInit = State#tcstate.processCounter + 1,
+  CounterFinal =
+        lists:foldl(fun({Pid, MFA, Service, Scheduler, Behavior}, Counter) ->
+                            ets:insert(Table, {Pid, MFA, Service, Scheduler, Behavior, Counter, now()}),
+                            Counter + 1
+                    end, CounterInit, ProcList),
+  State#tcstate{processCounter = CounterFinal}.
   
 fill_initial_proclinktable(_Table, []) ->
   ok;
