@@ -498,13 +498,15 @@ mod_to_behaviour(Mod) ->
           end
   end,
   [atom_to_binary(X, latin1) || X <- Behaviour].
+
   
-pid_to_application(Pid) when is_pid(Pid) ->
+pid_to_application(Pid) when is_pid(Pid), node(Pid) =:= node() ->
   case application:get_application(Pid) of
     undefined -> <<"undefined">>;
     {ok, App} -> atom_to_binary(App, latin1);
-    _X -> <<"undefined">>
+    _X        -> <<"undefined">>
   end;
+
 pid_to_application(_Pid) ->
   <<"undefined">>.
   
