@@ -22,7 +22,7 @@
 
 -export([update_process_info/1, mod_to_service/1, local_translate_initial_call/1, get_current_json/1, mod_to_behaviour/1]).
 
--export([print_event_times/1]).
+-export([print_event_times/2, print_event_times/3]).
 
 -include("concurix_runtime.hrl").
 
@@ -100,12 +100,17 @@ handle_call({start_tracer, RunInfo, Options},  _From, undefined) ->
                        procLinkTable    = setup_ets_table(cx_proclink),
                        eventTimeTable   = setup_ets_table(cx_eventtime),
 
+                       processDict      = dict:new(),
+                       eventTimeDict    = dict:new(),
+                       eventWholeDict   = dict:new(),
+
                        traceSupervisor  = undefined,
 
                        collectTraceData = undefined,
                        sendUpdates      = undefined,
 
-                       processCounter   = 0
+                       processCounter   = 0,
+                       maxQueueLen      = 0
                       },
 
   fill_initial_tables(State),
@@ -355,21 +360,29 @@ update_process_info([Pid | T], Acc) ->
   update_process_info(T, NewAcc).
 
 
-print_event_times(State) ->  
-    Table = State#tcstate.eventTimeTable,
-    lists:foreach(fun({MFA, N, SumX, SumY, SumXSquared, SumYSquared, SumXY}) ->
+print_event_times(EventTimeDict, EventWholeDict) ->
+    print_event_times(EventTimeDict, EventWholeDict, 0.9).
+
+print_event_times(EventTimeDict, EventWholeDict, Threshold) ->
+    lists:foreach(fun({Pid, {MFA, N, SumX, SumY, SumXSquared, SumYSquared, SumXY}}) when N > 100 ->
                           case linear_regression:fit_sums(N, SumX, SumY,
                                                           SumXSquared,
                                                           SumYSquared,
                                                           SumXY) of
-                              undefined ->
-                                  ok;
-                              {Slope, Intercept, CC} when abs(CC) > 0.9 ->
-                                  io:format("Correlation coefficient of ~.2f for ~p: t = ~.2f * x + ~.2f~n", [CC, MFA, Slope, Intercept]);
+                              {Slope, Intercept, CC} when abs(CC) > Threshold ->
+                                  io:format("~b points fit with CC of ~.2f for ~p: t = ~.2f * x + ~.2f~n", [N, CC, MFA, Slope, Intercept]);
                               _ ->
                                   ok
-                          end
-                  end, ets:tab2list(Table)).
+                          end;
+                     (_) ->
+                          ok
+                  end, dict:to_list(EventTimeDict)),
+    
+    lists:foreach(fun({Pid, Pairs}) when length(Pairs) > 100 ->
+                          io:format("X-Y pairs for ~p: ~p~n", [Pid, Pairs]);
+                     (_) ->
+                          ok
+                  end, dict:to_list(EventWholeDict)).
 
 
 pid_to_b(Pid) ->

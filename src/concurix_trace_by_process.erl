@@ -26,9 +26,11 @@ start_link(State) ->
   gen_server:start_link(?MODULE, [State], []).
 
 init([State]) ->
-  %% This gen_server will receive the trace messages (i.e. invoke handle_info/2)
-  erlang:trace(all, true, [procs, send, running, scheduler_id, timestamp]),
+  register(process_tracer, self()),
+  process_flag(priority, high),
 
+  %% This gen_server will receive the trace messages (i.e. invoke handle_info/2)
+  erlang:trace(all, true, [procs, running, timestamp]),
   {ok, State}.
 
 handle_call(_Call, _From, State) ->
@@ -53,7 +55,6 @@ handle_info({trace, Creator, spawn, Pid,               Data}, State) ->
 handle_info({trace_ts, Creator, spawn, Pid, Data, TimeStamp}, State) ->
   {noreply, trace_spawn(Creator, Pid, Data, TimeStamp, State)};
 
-
 handle_info({trace, Pid, exit,               Reason}, State) ->
   trace_exit(Pid, Reason, undefined, State),
   {noreply, State};  
@@ -68,17 +69,61 @@ handle_info({trace_ts, Pid, exit, Reason, TimeStamp}, State) ->
 
 handle_info({trace, Pid, in,  Scheduler,               _MFA}, State) ->
   update_proc_scheduler(Pid, Scheduler, undefined, State),
-  {noreply, State};
+
+  {message_queue_len, QueueLen} = process_info(self(), message_queue_len),
+  if
+    QueueLen > (State#tcstate.maxQueueLen + 1000) ->
+          io:format("Queue length: ~b~n", [QueueLen]),
+          measure_queue(),
+          {noreply, State#tcstate{maxQueueLen = QueueLen}};
+    true ->
+          {noreply, State}
+  end;
+
 handle_info({trace_ts, Pid, in,  Scheduler, MFA, TimeStamp}, State) ->
-  update_proc_scheduler(Pid, Scheduler, TimeStamp, State),
-  update_event_times(Pid, MFA, TimeStamp, State),
-  {noreply, State};  
+    update_proc_scheduler(Pid, Scheduler, TimeStamp, State),
+    State2 = update_event_times(Pid, MFA, TimeStamp, State),
+
+    {message_queue_len, QueueLen} = process_info(self(), message_queue_len),
+    if
+        QueueLen > (State2#tcstate.maxQueueLen + 1000) ->
+            io:format("Queue length: ~b~n", [QueueLen]),
+            {heap_size, HeapSize} = process_info(self(), heap_size),
+            io:format("Heap size: ~b~n", [HeapSize]),
+            %% measure_queue(),
+            {noreply, State2#tcstate{maxQueueLen = QueueLen}};
+        true ->
+            {noreply, State2}
+    end;
+
+handle_info({trace_ts, Pid, in, MFA, TimeStamp}, State) ->
+    update_proc_scheduler(Pid, 1, TimeStamp, State),
+    State2 = update_event_times(Pid, MFA, TimeStamp, State),
+
+    {message_queue_len, QueueLen} = process_info(self(), message_queue_len),
+    if
+        QueueLen > (State2#tcstate.maxQueueLen + 1000) ->
+            io:format("Queue length: ~b~n", [QueueLen]),
+            {heap_size, HeapSize} = process_info(self(), heap_size),
+            io:format("Heap size: ~b~n", [HeapSize]),
+            %% measure_queue(),
+            {noreply, State2#tcstate{maxQueueLen = QueueLen}};
+        true ->
+            {noreply, State2}
+    end;
+
+handle_info({probe_ppt, Pid, MFA, TimeStamp}, State) ->
+    {noreply, update_event_times(Pid, MFA, TimeStamp, State)};
 
 handle_info({trace, Pid, out, Scheduler,               _MFA}, State) ->
   update_proc_scheduler(Pid, Scheduler, undefined, State),
   {noreply, State};
 handle_info({trace_ts, Pid, out, Scheduler, _MFA, TimeStamp}, State) ->
   update_proc_scheduler(Pid, Scheduler, TimeStamp, State),
+  {noreply, State};
+
+handle_info({trace_ts, Pid, out, _MFA, TimeStamp}, State) ->
+  update_proc_scheduler(Pid, 1, TimeStamp, State),
   {noreply, State};
 
 %%
@@ -136,9 +181,39 @@ handle_info(stop_tracing,                           State) ->
   erlang:trace(all, false, []),
   {stop, normal, State};
 
+handle_info({print_lines, Threshold},               State) ->
+    concurix_runtime:print_event_times(State#tcstate.eventTimeDict,
+                                       State#tcstate.eventWholeDict,
+                                       Threshold),
+    {noreply, State};
+
 handle_info(Msg,                                    State) ->
   io:format("~p:handle_info/2.  Unsupported msg = ~p ~n", [?MODULE, Msg]),
   {noreply, State}.
+
+
+%% Check the count of messages by type in the message queue.
+measure_queue() ->
+    {messages, Messages} = process_info(self(), messages),
+    ErlPrimLoader = whereis(erl_prim_loader),
+    Counts = lists:foldl(fun(Msg, Cnts) ->
+                                 if
+                                     is_tuple(Msg), tuple_size(Msg) >= 3 ->
+                                         NewCnts = dict:update_counter(element(3, Msg), 1, Cnts),
+                                         case Msg of
+                                             {trace, ErlPrimLoader, getting_unlinked, _} ->
+                                                 NewCnts1 = dict:update_counter(erl_prim_loader_unlinked, 1, NewCnts);
+                                             {trace_ts, ErlPrimLoader, getting_unlinked, _, _} ->
+                                                 NewCnts1 = dict:update_counter(erl_prim_loader_unlinked, 1, NewCnts);
+                                             _ ->
+                                                 NewCnts1 = NewCnts
+                                         end,
+                                         NewCnts1;
+                                     true ->
+                                         Cnts
+                                 end
+                         end, dict:new(), Messages),
+    io:format("Message counts:~n~p~n", [dict:to_list(Counts)]).
 
 
 trace_spawn(Creator, Pid, Data, TimeStamp, State) ->
@@ -165,51 +240,58 @@ trace_spawn(Creator, Pid, Data, TimeStamp, State) ->
   Behaviour = concurix_runtime:mod_to_behaviour(Mod),
   Number    = State#tcstate.processCounter + 1,
   State1    = State#tcstate{processCounter = Number},
-  Key       = {Pid, {Mod, Fun, Arity}, Service, 1, Behaviour, Number, TimeStamp},
+  Value     = {Pid, {Mod, Fun, Arity}, Service, 1, Behaviour, Number, TimeStamp},
 
-  ets:insert(State1#tcstate.processTable, Key),
+  %% Put process data in a dictionary instead of an ETS table.
+  State2    = State1#tcstate{processDict = dict:store(Pid, Value, State1#tcstate.processDict)},
+  State3    = update_proc_dict(Creator, State2),
+  State3.
+
+  %% ets:insert(State1#tcstate.processTable, Key),
 
   %% also include a link from the creator process to the created.
-  State2 = update_proc_table(Creator, State1),
+  %% State2 = update_proc_table(Creator, State1),
 
-  %% TODO--should probably remove this once we put in supervisor hierarchy support
-  ets:insert(State2#tcstate.linkTable, {{Creator, Pid}, 1, 0}),
+  %% %% TODO--should probably remove this once we put in supervisor hierarchy support
+  %% ets:insert(State2#tcstate.linkTable, {{Creator, Pid}, 1, 0}),
 
-  State2.
+  %% State2.
 
 
 trace_exit(Pid, _Reason, _TimeStamp, State) ->
-  ets:safe_fixtable(State#tcstate.processTable,   true),
-  ets:safe_fixtable(State#tcstate.linkTable,      true),
-  ets:safe_fixtable(State#tcstate.procLinkTable,  true),
+    ok.
+  %% ets:safe_fixtable(State#tcstate.processTable,   true),
+  %% ets:safe_fixtable(State#tcstate.linkTable,      true),
+  %% ets:safe_fixtable(State#tcstate.procLinkTable,  true),
 
-  ets:select_delete(State#tcstate.linkTable,       [ { {{'_', Pid}, '_', '_'},         [], [true] }, 
-                                                     { {{Pid, '_'}, '_', '_'},         [], [true] } ]),
+  %% ets:select_delete(State#tcstate.linkTable,       [ { {{'_', Pid}, '_', '_'},         [], [true] }, 
+  %%                                                    { {{Pid, '_'}, '_', '_'},         [], [true] } ]),
 
-  ets:select_delete(State#tcstate.processTable,    [ { {Pid, '_', '_', '_', '_', '_', '_'}, [], [true] } ]),
+  %% ets:select_delete(State#tcstate.processTable,    [ { {Pid, '_', '_', '_', '_', '_', '_'}, [], [true] } ]),
 
-  ets:select_delete(State#tcstate.procLinkTable,   [ { {'_', Pid},                     [], [true] }, 
-                                                     { {Pid, '_'},                     [], [true] } ]),
+  %% ets:select_delete(State#tcstate.procLinkTable,   [ { {'_', Pid},                     [], [true] }, 
+  %%                                                    { {Pid, '_'},                     [], [true] } ]),
 
-  ets:safe_fixtable(State#tcstate.linkTable,     false),
-  ets:safe_fixtable(State#tcstate.processTable,  false),
-  ets:safe_fixtable(State#tcstate.procLinkTable, false).
+  %% ets:safe_fixtable(State#tcstate.linkTable,     false),
+  %% ets:safe_fixtable(State#tcstate.processTable,  false),
+  %% ets:safe_fixtable(State#tcstate.procLinkTable, false).
 
 
 trace_send(Sender, Data, Recipient, _TimeStamp, State) ->
-  State1 = update_proc_table(Sender,    State),
-  State2 = update_proc_table(Recipient, State1),
-
-  Size = erts_debug:flat_size(Data),
-  
-  case ets:lookup(State2#tcstate.linkTable, {Sender, Recipient}) of
-    [] ->
-      ets:insert(State2#tcstate.linkTable, {{Sender, Recipient}, 1, Size});
-
-    _ ->
-      ets:update_counter(State2#tcstate.linkTable, {Sender, Recipient}, [{2, 1}, {3, Size}])
-  end,
+  State1 = update_proc_dict(Sender,    State),
+  State2 = update_proc_dict(Recipient, State1),
   State2.
+
+  %% Size = erts_debug:flat_size(Data),
+  
+  %% case ets:lookup(State2#tcstate.linkTable, {Sender, Recipient}) of
+  %%   [] ->
+  %%     ets:insert(State2#tcstate.linkTable, {{Sender, Recipient}, 1, Size});
+
+  %%   _ ->
+  %%     ets:update_counter(State2#tcstate.linkTable, {Sender, Recipient}, [{2, 1}, {3, Size}])
+  %% end,
+  %% State2.
 
 
 decode_anon_fun(Fun) ->
@@ -225,66 +307,106 @@ decode_anon_fun(Fun) ->
 
   {Mod, Str, 0}.
  
-update_proc_table(Pid, State) ->
-  case ets:lookup(State#tcstate.processTable, Pid) of
-    [] ->
-      Number = State#tcstate.processCounter + 1,
-      [{Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour}] =
-              concurix_runtime:update_process_info(Pid),
-      ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour, Number, now()}),
-      State#tcstate{processCounter = Number};
+%% update_proc_table(Pid, State) ->
+%%   case ets:lookup(State#tcstate.processTable, Pid) of
+%%     [] ->
+%%       Number = State#tcstate.processCounter + 1,
+%%       [{Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour}] =
+%%               concurix_runtime:update_process_info(Pid),
+%%       ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour, Number, now()}),
+%%       State#tcstate{processCounter = Number};
 
-    _ ->
-      State
-  end.
+%%     _ ->
+%%       State
+%%   end.
+
+update_proc_dict(Pid, State) ->
+    case dict:find(Pid, State#tcstate.processDict) of
+        error ->
+            Number = State#tcstate.processCounter + 1,
+            [{Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour}] =
+                concurix_runtime:update_process_info(Pid),
+            State#tcstate{processDict = dict:store(Pid, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour, Number, now()},
+                                                   State#tcstate.processDict),
+                          processCounter = Number};
+        _ ->
+            State
+    end.
 
 update_proc_scheduler(Pid, Scheduler, _TimeStamp, State) ->
-  case ets:lookup(State#tcstate.processTable, Pid) of 
-    [] ->
-      %% we don't have it yet, wait until we get the create message
-      ok;
+    ok.
+  %% case ets:lookup(State#tcstate.processTable, Pid) of 
+  %%   [] ->
+  %%     %% we don't have it yet, wait until we get the create message
+  %%     ok;
 
-    [{Pid, {Mod, Fun, Arity}, Service, _OldScheduler, Behaviour, Number, StartTime}] ->
-      ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour, Number, StartTime});
+  %%   [{Pid, {Mod, Fun, Arity}, Service, _OldScheduler, Behaviour, Number, StartTime}] ->
+  %%     ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour, Number, StartTime});
 
-    X ->
-      io:format("yikes, corrupt proc table in update_proc_scheduler ~p ~n", [X])
-  end.
+  %%   X ->
+  %%     io:format("yikes, corrupt proc table in update_proc_scheduler ~p ~n", [X])
+  %% end.
 
 update_event_times(Pid, MFA, TimeStamp, State) ->
-  EventTimeTable = State#tcstate.eventTimeTable,
+  EventTimeDict = State#tcstate.eventTimeDict,
+  EventWholeDict = State#tcstate.eventWholeDict,
 
-  case ets:lookup(State#tcstate.processTable, Pid) of
-    [{Pid, _, _, _, _, Number, StartTime}] ->
+  case MFA of 
+    {proc_lib, init_p, _ProcInfo} ->
+      Stage = concurix_runtime:local_translate_initial_call(Pid),
+      ok;
+
+    {erlang, apply, [TempFun, _Args]} ->
+      Stage = decode_anon_fun(TempFun);
+
+    _X ->
+      Stage = MFA
+  end,
+
+  case dict:find(Pid, State#tcstate.processDict) of
+    {ok, {Pid, _, _, _, _, Number, StartTime}} ->
       X = Number,
       Y = timer:now_diff(TimeStamp, StartTime),
+
+      EventWholeDict2 = dict:append(Stage, {X, Y}, EventWholeDict),
     
-      case ets:lookup(EventTimeTable, MFA) of
-        [] ->
-          ets:insert(EventTimeTable, {MFA, 1, X, Y, X * X, Y * Y, X * Y});
+      case dict:find(Stage, EventTimeDict) of
+        error ->
+          State2 = State#tcstate{eventTimeDict =
+                                     dict:store(Stage, {Stage, 1, X, Y, X * X, Y * Y, X * Y},
+                                                EventTimeDict),
+                                 eventWholeDict = EventWholeDict2};
 
-        [{MFA, N, SumX, SumY, SumXSquared, SumYSquared, SumXY}] ->
-          ets:insert(EventTimeTable, {MFA, N + 1, SumX + X, SumY + Y,
-                                      SumXSquared + X * X, SumYSquared + Y * Y,
-                                      SumXY + X * Y});
-
-        X ->
-          io:format("yikes, corrupt proc table in update_event_times ~p ~n", [X])
+        {ok, {Stage, N, SumX, SumY, SumXSquared, SumYSquared, SumXY}} ->
+          State2 = State#tcstate{eventTimeDict =
+                                     dict:store(Stage, {Stage, N + 1, SumX + X, SumY + Y,
+                                                        SumXSquared + X * X, SumYSquared + Y * Y,
+                                                        SumXY + X * Y},
+                                                EventTimeDict),
+                                 eventWholeDict = EventWholeDict2};
+        Y ->
+          io:format("Unexpected inner dict:find result ~p~n", [Y]),
+          State2 = State
       end;
-    _ ->
-      ok
-  end.
+    error ->
+          ok,
+          State2 = State;
+    X ->
+          io:format("Unexpected dict:find result ~p~n", [X]),
+          State2 = State
+  end,
+  State2.
 
-insert_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
-  ets:insert(State#tcstate.procLinkTable, {Pid1, Pid2});
-insert_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
-  ets:insert(State#tcstate.procLinkTable, {Pid2, Pid1});
+%% insert_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
+%%   ets:insert(State#tcstate.procLinkTable, {Pid1, Pid2});
+%% insert_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
+%%   ets:insert(State#tcstate.procLinkTable, {Pid2, Pid1});
 insert_proc_link(_State, _Pid1, _Pid2) ->
   ok.
   
-delete_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
-  ets:delete_object(State#tcstate.procLinkTable, {Pid1, Pid2});
-delete_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
-  ets:delete_object(State#tcstate.procLinkTable, {Pid2, Pid1});
+%% delete_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
+%%   ets:delete_object(State#tcstate.procLinkTable, {Pid1, Pid2});
+%% delete_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
+%%   ets:delete_object(State#tcstate.procLinkTable, {Pid2, Pid1});
 delete_proc_link(_State, _Pid1, _Pid2) ->
   ok.

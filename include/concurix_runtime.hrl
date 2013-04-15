@@ -7,11 +7,16 @@
           sysProfTable, 
           procLinkTable, 
           eventTimeTable,
+          eventWholeDict,
+
+          processDict,
+          eventTimeDict,
 
           traceSupervisor,
 
           collectTraceData,
           sendUpdates,
 
-          processCounter
+          processCounter,
+          maxQueueLen
         }).
