@@ -358,7 +358,7 @@ update_process_info([Pid | T], Acc) ->
 print_event_times(State) ->  
     Table = State#tcstate.eventTimeTable,
     lists:foreach(fun({MFA, N, SumX, SumY, SumXSquared, SumYSquared, SumXY}) ->
-                          case linear_regression:fit_sums(N, SumX, SumY,
+                          case concurix_linear_regression:fit_sums(N, SumX, SumY,
                                                           SumXSquared,
                                                           SumYSquared,
                                                           SumXY) of

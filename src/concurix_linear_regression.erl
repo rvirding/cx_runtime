@@ -1,5 +1,5 @@
 
--module(linear_regression).
+-module(concurix_linear_regression).
 
 -export([fit/1, fit/2, fit_sums/6]).
 
