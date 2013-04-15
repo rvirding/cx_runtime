@@ -45,7 +45,7 @@ fit_sums(N, SumX, SumY, SumXSquared, SumYSquared, SumXY) when N > 1 ->
     %% and the linear regression fit is not well-defined.
 
     if
-        Run > 0.0, DiffXSq >= 0.0, DiffYSq >= 0.0 ->
+        Run > 0.0, DiffXSq >= 0.0, DiffYSq > 0.0 ->
             Slope = Rise/Run,
             Intercept = MeanY - Slope * MeanX,
             StdX = math:sqrt(DiffXSq/(N-1)),
