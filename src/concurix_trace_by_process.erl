@@ -254,17 +254,29 @@ update_proc_scheduler(Pid, Scheduler, _TimeStamp, State) ->
 update_event_times(Pid, MFA, TimeStamp, State) ->
   EventTimeTable = State#tcstate.eventTimeTable,
 
+  case MFA of 
+    {proc_lib, init_p, _ProcInfo} ->
+      Stage = concurix_runtime:local_translate_initial_call(Pid),
+      ok;
+
+    {erlang, apply, [TempFun, _Args]} ->
+      Stage = decode_anon_fun(TempFun);
+
+    _ ->
+      Stage = MFA
+  end,
+
   case ets:lookup(State#tcstate.processTable, Pid) of
     [{Pid, _, _, _, _, Number, StartTime}] ->
       X = Number,
       Y = timer:now_diff(TimeStamp, StartTime),
     
-      case ets:lookup(EventTimeTable, MFA) of
+      case ets:lookup(EventTimeTable, Stage) of
         [] ->
-          ets:insert(EventTimeTable, {MFA, 1, X, Y, X * X, Y * Y, X * Y});
+          ets:insert(EventTimeTable, {Stage, 1, X, Y, X * X, Y * Y, X * Y});
 
-        [{MFA, N, SumX, SumY, SumXSquared, SumYSquared, SumXY}] ->
-          ets:insert(EventTimeTable, {MFA, N + 1, SumX + X, SumY + Y,
+        [{Stage, N, SumX, SumY, SumXSquared, SumYSquared, SumXY}] ->
+          ets:insert(EventTimeTable, {Stage, N + 1, SumX + X, SumY + Y,
                                       SumXSquared + X * X, SumYSquared + Y * Y,
                                       SumXY + X * Y});
 
