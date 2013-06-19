@@ -52,7 +52,7 @@ handle_info(send_snapshot, State) ->
   end,
 
   RunInfo = State#tcstate.runInfo,
-  Url     = proplists:get_value(trace_url, RunInfo),
+  Url     = binary_to_list(proplists:get_value(<<"trace_url">>, RunInfo)),
   Fields  = snapshot_fields(RunInfo),
   Json    = concurix_runtime:get_current_json(State),
   Request = s3_make_post_http_request(Url, Fields, Json),
@@ -69,23 +69,23 @@ handle_info(Msg, State) ->
   {noreply, State}.
 
 snapshot_fields(RunInfo) ->
-  Run_id              = proplists:get_value(run_id, RunInfo),
-  Fields              = proplists:get_value(fields, RunInfo),
+  Run_id              = binary_to_list(proplists:get_value(<<"run_id">>, RunInfo)),
+  Fields              = proplists:get_value(<<"fields">>, RunInfo),
 
   {Mega, Secs, Micro} = now(),
 
   KeyString           = io_lib:format("json_realtime_trace_snapshot.~p.~p-~6..0w-~6..0w", [node(), Mega, Secs, Micro]),
   Key                 = lists:flatten(KeyString),
 
-  case proplists:is_defined(key, Fields) of
+  case proplists:is_defined(<<"key">>, Fields) of
     true  ->
-      Temp = proplists:delete(key, Fields);
+      Temp = proplists:delete(<<"key">>, Fields);
 
     false -> 
       Temp = Fields
   end,
 
-  Temp ++ [{key, Run_id ++ "/" ++ Key}].
+  Temp ++ [{<<"key">>, list_to_binary(Run_id ++ "/" ++ Key)}].
  
 terminate(_Reason, _State) ->
   ok.
@@ -127,10 +127,10 @@ format_multipart_formdata(Boundary, Fields, Data, Type) ->
   FieldParts  = lists:map(fun({FieldName, FieldContent}) ->
                             [lists:concat(["--", Boundary]),
                              lists:concat(["Content-Disposition: form-data; name=\"",
-                                           atom_to_list(FieldName),
+                                           binary_to_list(FieldName),
                                            "\""]),
                              "",
-                             FieldContent]
+                             convert_to_list(FieldContent)]
                             end, 
                           Fields),
   FieldParts2 = lists:append(FieldParts),
@@ -148,5 +148,11 @@ format_multipart_formdata(Boundary, Fields, Data, Type) ->
 
   string:join(Parts, "\r\n").
 
-
+convert_to_list(Data) when is_list(Data)->
+  Data;
+convert_to_list(Data) when is_binary(Data)->
+  binary_to_list(Data);
+convert_to_list(Data) when is_integer(Data)->
+  integer_to_list(Data).
+  
 

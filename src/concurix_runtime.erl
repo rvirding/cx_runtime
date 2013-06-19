@@ -63,7 +63,6 @@ internal_start(Config, Options) ->
     true  ->
       %% Contact concurix.com and obtain Keys for S3
       RunInfo = get_run_info(Config),
-
       gen_server:call(?MODULE, { start_tracer, RunInfo, Options });
 
     false ->
@@ -83,11 +82,11 @@ start_link() ->
 
 init([]) ->
   concurix_web_socket:start(),
-  
   {ok, undefined}.
 
 handle_call({start_tracer, RunInfo, Options},  _From, undefined) ->
-  io:format("Starting tracing with RunId ~p~n", [proplists:get_value(run_id, RunInfo)]),
+  io:format("starting Concurix tracing ~n"),
+  %%io:format("Starting tracing with RunId ~p~n", [binary_to_list(proplists:get_value(<<"run_id">>, RunInfo))]),
 
   State     = #tcstate{runInfo          = RunInfo,
 
@@ -161,9 +160,8 @@ get_run_info(Config) ->
   Reply          = httpc:request(Url),
 
   case Reply of
-    {_, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} -> 
-      eval_string(Body);
-
+    {_, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} ->
+      cx_jsx:json_to_term(list_to_binary(Body));
     _ ->
       {Mega, Secs, Micro} = now(), 
       lists:flatten(io_lib:format("local-~p-~p-~p", [Mega, Secs, Micro]))
@@ -286,7 +284,7 @@ get_current_json(State) ->
                       {process_free,    Free}] ||
                       {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
 
-  Run_id         = proplists:get_value(run_id, State#tcstate.runInfo),
+  Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.runInfo)),
 
   Send           = [{version,           3},
                     {run_id,            list_to_binary(Run_id)},
