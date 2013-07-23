@@ -292,16 +292,19 @@ get_current_json(State) ->
   {Mega, Secs, _}= now(),
   Timestamp      = Mega*1000000 + Secs,
 
-  Send           = [{version,           3},
+  Send           = [{version,           <<"0.1.3">>},
                     {run_id,            list_to_binary(Run_id)},
                     {timestamp,         Timestamp},
                     {load_avg,          concurix_cpu_info:load_avg()},
                     {cpus,              concurix_cpu_info:cpu_info()},
 
-                    {nodes,             TempProcs},
-                    {links,             TempLinks},
-                    {proclinks,         ProcLinks},
-                    {schedulers,        Schedulers}],
+                    {data,              [{nodes,             TempProcs},
+                                         {links,             TempLinks},
+                                         {proclinks,         ProcLinks},
+                                         {schedulers,        Schedulers}]}],
+
+  cx_jsx_eep0018:term_to_json(Send, []).
+
 
   cx_jsx_eep0018:term_to_json([{data, Send}], []).
  
