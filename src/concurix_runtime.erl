@@ -56,7 +56,10 @@ internal_start(Config, Options) ->
   application:start(timer),
 
   ssl:start(),
-    
+
+  application:start(sasl),
+  application:start(os_mon),
+
   application:start(concurix_runtime),
 
   case tracer_is_enabled(Options) of

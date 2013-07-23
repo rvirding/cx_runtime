@@ -6,7 +6,7 @@
   {modules,               [
                             concurix_runtime_app,
                             concurix_runtime_sup,
-      
+
                             concurix_runtime,
 
                             concurix_trace_supervisor,
@@ -25,7 +25,7 @@
                           ]},
   {registered,            []},
   {included_applications, []},
-  {applications,          [kernel, stdlib, crypto, gproc]},
+  {applications,          [kernel, stdlib, crypto, gproc, sasl, os_mon]},
   {env,                   []},
   {mod,                   {concurix_runtime_app, []}}
  ]}.
