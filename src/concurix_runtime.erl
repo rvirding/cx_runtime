@@ -315,9 +315,6 @@ get_current_json(State) ->
   cx_jsx_eep0018:term_to_json(Send, []).
 
 
-  cx_jsx_eep0018:term_to_json([{data, Send}], []).
- 
-  
 
 
 validate_tables(Procs, Links, _State) ->
