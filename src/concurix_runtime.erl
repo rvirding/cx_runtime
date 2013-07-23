@@ -291,6 +291,9 @@ get_current_json(State) ->
 
   Send           = [{version,           3},
                     {run_id,            list_to_binary(Run_id)},
+                    {load_avg,          concurix_cpu_info:load_avg()},
+                    {cpus,              concurix_cpu_info:cpu_info()},
+
                     {nodes,             TempProcs},
                     {links,             TempLinks},
                     {proclinks,         ProcLinks},
