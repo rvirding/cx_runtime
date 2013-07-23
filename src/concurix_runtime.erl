@@ -246,40 +246,49 @@ get_current_json(State) ->
   RawProcLink    = ets:tab2list(State#tcstate.procLinkTable),
 
   {Procs, Links} = validate_tables(RawProcs, RawLinks, State),
- 
+
   ets:safe_fixtable(State#tcstate.sysProfTable,  false),
-  ets:safe_fixtable(State#tcstate.linkTable,     false),  
+  ets:safe_fixtable(State#tcstate.linkTable,     false),
   ets:safe_fixtable(State#tcstate.processTable,  false),
   ets:safe_fixtable(State#tcstate.procLinkTable, false),
 
-  TempProcs      = [ [{name,            pid_to_b(Pid)}, 
-                      {module,          term_to_b(M)}, 
-                      {fun_name,        term_to_b(F)}, 
-                      {arity,           A}, 
+  TempProcs      = [ [{id,              pid_to_b(Pid)},
+                      {pid,             ospid_to_b()},
+                      {name,            pid_to_name(Pid)},
+                      {module,          term_to_b(M)},
+                      {fun_name,        term_to_b(F)},
+                      {arity,           A},
                       local_process_info(Pid, reductions),
                       local_process_info(Pid, total_heap_size),
                       local_process_info(Pid, message_queue_len),
                       term_to_b({service, Service}),
                       {scheduler,       Scheduler},
                       {behaviour,       Behaviour},
-                      {application,     pid_to_application(Pid)}] || 
+                      {application,     pid_to_application(Pid)},
+                      {num_calls,       null}, % TODO fixme
+                      {duration,        null}, % TODO fixme
+                      {mem_delta,       null} % TODO fixme
+                     ] ||
                       {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs ],
 
-  TempLinks      = [ [{source,          pid_to_b(A)}, 
-                      {target,          pid_to_b(B)},
-                      {value,           C},
-                      {words_sent,      D}] || 
+  TempLinks      = [ [{source,          pid_to_name(A)},
+                      {target,          pid_to_name(B)},
+                      {type,            <<"message">>},
+                      {total_delay,     100}, % TODO fixme
+                      {start,           16377435315}, % TODO fixme
+                      {num_calls,       C},
+                      {words_sent,      D}] ||
                       {{A, B}, C, D} <- Links],
 
-  ProcLinks       = [ [{source,         pid_to_b(A)},
-                       {target,         pid_to_b(B)}]
+  ProcLinks       = [ [{source,         pid_to_name(A)},
+                       {target,         pid_to_name(B)}]
                       || {A, B} <- RawProcLink],
 
-  Schedulers     = [ [{scheduler,       Id}, 
-                      {process_create,  Create}, 
-                      {quanta_count,    QCount}, 
-                      {quanta_time,     QTime}, 
-                      {send,            Send}, 
+  Schedulers     = [ [{scheduler,       Id},
+                      {process_create,  Create},
+                      {quanta_count,    QCount},
+                      {quanta_time,     QTime},
+                      {send,            Send},
                       {gc,              GC},
                       {true_call_count, True},
                       {tail_call_count, Tail},
@@ -359,13 +368,17 @@ update_process_info([Pid | T], Acc) ->
   NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service, 1, Behave}],
 
   update_process_info(T, NewAcc).
-  
 
+
+
+pid_to_name(Pid) ->
+  << (ospid_to_b())/binary, ":", (pid_to_b(Pid))/binary >>.
+
+ospid_to_b() ->
+  list_to_binary(os:getpid()).
 
 pid_to_b(Pid) ->
   list_to_binary(lists:flatten(io_lib:format("~p", [Pid]))).
-
-
 
 term_to_b({Key, Value}) ->
   {Key, term_to_b(Value)};
