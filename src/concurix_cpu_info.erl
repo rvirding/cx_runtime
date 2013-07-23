@@ -6,11 +6,16 @@ load_avg() ->
     [cpu_sup:avg1() / 256, cpu_sup:avg5() / 256, cpu_sup:avg15() / 256].
 
 cpu_info() ->
-    % TODO fail gracefully on non-linux OS
-    RawInfo = re:split(os:cmd("cat /proc/cpuinfo"), "\n"),
-    CpuInfos = group_cpus(parse_cpu_fields(RawInfo)),
-    CpuTimes = cpu_times(),
-    [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos].
+    case os:type() of
+        {unix, _} ->
+            RawInfo = re:split(os:cmd("cat /proc/cpuinfo"), "\n"),
+            CpuInfos = group_cpus(parse_cpu_fields(RawInfo)),
+            CpuTimes = cpu_times(),
+            [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos];
+        _ ->
+            % erlang has no way of retrieving cpu info on windows :(
+            []
+    end.
 
 cpu_times() ->
     % TODO handle NonBusy and Misc
