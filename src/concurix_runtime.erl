@@ -289,8 +289,12 @@ get_current_json(State) ->
 
   Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.runInfo)),
 
+  {Mega, Secs, _}= now(),
+  Timestamp      = Mega*1000000 + Secs,
+
   Send           = [{version,           3},
                     {run_id,            list_to_binary(Run_id)},
+                    {timestamp,         Timestamp},
                     {load_avg,          concurix_cpu_info:load_avg()},
                     {cpus,              concurix_cpu_info:cpu_info()},
 
