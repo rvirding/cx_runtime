@@ -18,8 +18,7 @@ cpu_info() ->
     end.
 
 cpu_times() ->
-    % TODO handle NonBusy and Misc
-    [{Id, Busy} || {Id, Busy, _NonBusy, _Misc} <- cpu_sup:util([detailed, per_cpu])].
+    [{Id, [{busy, Busy}, {nonbusy, NonBusy}, {misc, Misc}]} || {Id, Busy, NonBusy, Misc} <- cpu_sup:util([detailed, per_cpu])].
 
 parse_cpu_fields(RawInfo) ->
     parse_cpu_fields(RawInfo, []).
