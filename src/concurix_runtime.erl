@@ -255,7 +255,9 @@ get_current_json(State) ->
   TempProcs      = [ [{id,              pid_to_b(Pid)},
                       {pid,             ospid_to_b()},
                       {name,            pid_to_name(Pid)},
-                      {module,          term_to_b(M)},
+                      {module,          [{top, term_to_b(M)}, % TODO is this correct?
+                                         {requireId, term_to_b(M)},
+                                         {id, mod_to_id(M)}]},
                       {fun_name,        term_to_b(F)},
                       {arity,           A},
                       local_process_info(Pid, reductions),
@@ -520,7 +522,17 @@ mod_to_behaviour(Mod) ->
   end,
   [atom_to_binary(X, latin1) || X <- Behaviour].
 
-  
+mod_to_id(Mod) when is_list(Mod) ->
+    mod_to_id(list_to_atom(Mod)); % TODO trackdown the source of these string module names
+mod_to_id(Mod) when is_atom(Mod) ->
+    case code:is_loaded(Mod) of
+        {file, Path} when is_list(Path) ->
+            list_to_binary(Path);
+        _ ->
+            list_to_binary(atom_to_list(Mod))
+    end.
+
+
 pid_to_application(Pid) when is_pid(Pid), node(Pid) =:= node() ->
   case application:get_application(Pid) of
     undefined -> <<"undefined">>;
