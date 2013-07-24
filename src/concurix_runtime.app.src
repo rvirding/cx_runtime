@@ -25,7 +25,7 @@
                           ]},
   {registered,            []},
   {included_applications, []},
-  {applications,          [kernel, stdlib, crypto, gproc, sasl, os_mon]},
+  {applications,          [kernel, stdlib, crypto, gproc]},
   {env,                   []},
   {mod,                   {concurix_runtime_app, []}}
  ]}.

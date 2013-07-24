@@ -57,10 +57,7 @@ internal_start(Config, Options) ->
 
   ssl:start(),
 
-  application:start(sasl),
-  application:start(os_mon),
-
-  application:start(concurix_runtime),
+  ok = application:start(concurix_runtime),
 
   case tracer_is_enabled(Options) of
     true  ->
@@ -304,11 +301,16 @@ get_current_json(State) ->
   {Mega, Secs, _}= now(),
   Timestamp      = Mega*1000000 + Secs,
 
-  Send           = [{version,           <<"0.1.3">>},
+  CpuTimes = concurix_cpu_times:get_cpu_times(),
+  CpuInfos = concurix_cpu_info:get_cpu_info(),
+  Cpus = [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos],
+
+  Send           = [{type,              <<"nodejs">>}, % TODO remove before push
+                    {version,           <<"0.1.3">>},
                     {run_id,            list_to_binary(Run_id)},
                     {timestamp,         Timestamp},
-                    {load_avg,          concurix_cpu_info:load_avg()},
-                    {cpus,              concurix_cpu_info:cpu_info()},
+                    {load_avg,          concurix_cpu_times:get_load_avg()},
+                    {cpus,              Cpus},
 
                     {data,              [{nodes,             TempProcs},
                                          {links,             TempLinks},

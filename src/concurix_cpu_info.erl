@@ -1,24 +1,16 @@
 -module(concurix_cpu_info).
 
--export([load_avg/0, cpu_info/0]).
+-export([get_cpu_info/0]).
 
-load_avg() ->
-    [cpu_sup:avg1() / 256, cpu_sup:avg5() / 256, cpu_sup:avg15() / 256].
-
-cpu_info() ->
+get_cpu_info() ->
     case os:type() of
-        {unix, _} ->
+        {unix, linux} ->
             RawInfo = re:split(os:cmd("cat /proc/cpuinfo"), "\n"),
-            CpuInfos = group_cpus(parse_cpu_fields(RawInfo)),
-            CpuTimes = cpu_times(),
-            [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos];
+            group_cpus(parse_cpu_fields(RawInfo));
         _ ->
             % erlang has no way of retrieving cpu info on windows :(
             []
     end.
-
-cpu_times() ->
-    [{Id, [{busy, Busy}, {nonbusy, NonBusy}, {misc, Misc}]} || {Id, Busy, NonBusy, Misc} <- cpu_sup:util([detailed, per_cpu])].
 
 parse_cpu_fields(RawInfo) ->
     parse_cpu_fields(RawInfo, []).
@@ -42,7 +34,7 @@ parse_cpu_field( <<"model name">>, Value) ->
 parse_cpu_field(<<"cpu MHz">>, Value) ->
     [{speed, list_to_float(binary_to_list(Value))}];
 parse_cpu_field(_, _) ->
-    []. % TODO handle other fields
+    []. % ignore other fields for now
 
 group_cpus(Fields) ->
     group_cpus(Fields, [], []).

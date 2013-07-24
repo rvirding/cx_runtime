@@ -26,6 +26,7 @@ stop(_State) ->
 
 init([]) ->
   Children = [
+               {cx_cpu_times, {concurix_cpu_times, start_link, []}, permanent, 2000, worker, [concurix_cpu_times]},
                {cx_runtime, {concurix_runtime, start_link, []}, permanent, 2000, worker, [concurix_runtime]}
              ],
 
