@@ -301,7 +301,7 @@ term_to_event(List)    when is_list(List) ->
   term_to_events(List);
 
 term_to_event(Float)   when is_float(Float) ->
-  [{float, nicefloats:format(Float)}];
+  [{float, cx_nicefloats:format(Float)}];
 
 term_to_event(Integer) when is_integer(Integer) ->
   [{integer, erlang:integer_to_list(Integer)}];
