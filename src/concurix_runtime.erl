@@ -267,9 +267,10 @@ get_current_json(State) ->
                       {scheduler,       Scheduler},
                       {behaviour,       Behaviour},
                       {application,     pid_to_application(Pid)},
-                      {num_calls,       null}, % TODO fixme
-                      {duration,        null}, % TODO fixme
-                      {mem_delta,       null} % TODO fixme
+                      {num_calls,       1}, % TODO fixme
+                      {duration,        1000}, % TODO fixme
+                      {child_duration,  100}, % TODO this isn't even in the spec but is required for the dashboard to work
+                      {mem_delta,       1000} % TODO fixme
                      ] ||
                       {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs ],
 
