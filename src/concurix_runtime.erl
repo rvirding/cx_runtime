@@ -254,6 +254,19 @@ get_current_json(State) ->
   ets:safe_fixtable(State#tcstate.processTable,  false),
   ets:safe_fixtable(State#tcstate.procLinkTable, false),
 
+  CallTotals = lists:foldl(fun ({{Source, _Target}, NumCalls, _WordsSent}, Acc) ->
+                                   dict:update_counter(Source, NumCalls, Acc)
+                           end,
+                           dict:new(),
+                           Links),
+
+  NumCalls = fun (Pid) ->
+                     case dict:find(Pid, CallTotals) of
+                         {ok, Value} -> Value;
+                         error -> 0
+                     end
+             end,
+
   TempProcs      = [ [{id,              pid_to_b(Pid)},
                       {pid,             ospid_to_b()},
                       {name,            pid_to_name(Pid)},
@@ -268,7 +281,7 @@ get_current_json(State) ->
                       {scheduler,       Scheduler},
                       {behaviour,       Behaviour},
                       {application,     pid_to_application(Pid)},
-                      {num_calls,       1}, % TODO fixme
+                      {num_calls,       NumCalls(Pid)},
                       {duration,        1000}, % TODO fixme
                       {child_duration,  100} % TODO this isn't even in the spec but is required for the dashboard to work
                      ] ++ delta_info(State#tcstate.lastNodes, Pid)
