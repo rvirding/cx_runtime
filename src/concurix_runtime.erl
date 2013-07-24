@@ -254,7 +254,7 @@ get_current_json(State) ->
   ets:safe_fixtable(State#tcstate.processTable,  false),
   ets:safe_fixtable(State#tcstate.procLinkTable, false),
 
-  CallTotals = lists:foldl(fun ({{Source, _Target}, NumCalls, _WordsSent}, Acc) ->
+  CallTotals = lists:foldl(fun ({{Source, _Target}, NumCalls, _WordsSent, _Start}, Acc) ->
                                    dict:update_counter(Source, NumCalls, Acc)
                            end,
                            dict:new(),
@@ -292,10 +292,10 @@ get_current_json(State) ->
                       {target,          pid_to_name(B)},
                       {type,            <<"message">>},
                       {total_delay,     100}, % TODO fixme
-                      {start,           16377435315}, % TODO fixme
+                      {start,           Start},
                       {num_calls,       C},
                       {words_sent,      D}] ||
-                      {{A, B}, C, D} <- Links],
+                      {{A, B}, C, D, Start} <- Links],
 
   ProcLinks       = [ [{source,         pid_to_name(A)},
                        {target,         pid_to_name(B)}]
@@ -315,9 +315,6 @@ get_current_json(State) ->
 
   Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.runInfo)),
 
-  {Mega, Secs, _}= now(),
-  Timestamp      = Mega*1000000 + Secs,
-
   CpuTimes = concurix_cpu_times:get_cpu_times(),
   CpuInfos = concurix_cpu_info:get_cpu_info(),
   Cpus = [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos],
@@ -325,7 +322,7 @@ get_current_json(State) ->
   Send           = [{type,              <<"nodejs">>}, % TODO remove before push
                     {version,           <<"0.1.3">>},
                     {run_id,            list_to_binary(Run_id)},
-                    {timestamp,         Timestamp},
+                    {timestamp,         now_seconds()},
                     {load_avg,          concurix_cpu_times:get_load_avg()},
                     {cpus,              Cpus},
 
@@ -340,13 +337,13 @@ get_current_json(State) ->
 
 
 validate_tables(Procs, Links, _State) ->
-  Val         = lists:flatten([[A, B] || {{A, B}, _, _}  <- Links]),
+  Val         = lists:flatten([[A, B] || {{A, B}, _, _, _}  <- Links]),
   Tempprocs   = lists:usort  ([ A     || {A, _, _, _, _} <- Procs]),
   Templinks   = lists:usort(Val),
-  Updateprocs = Templinks -- Tempprocs, 
- 
+  Updateprocs = Templinks -- Tempprocs,
+
   NewProcs    = update_process_info(Updateprocs, []),
-  {Procs ++ NewProcs, Links}. 
+  {Procs ++ NewProcs, Links}.
 
 update_process_info(Pid) ->
   update_process_info([Pid], []).
@@ -642,3 +639,6 @@ careful_process_info(Pid, Item) when node(Pid) =:= node() ->
 careful_process_info(_Pid, _Item) ->
   undefined.
 
+now_seconds() ->
+    {Mega, Secs, _}= now(),
+    Mega*1000000 + Secs.
