@@ -315,15 +315,16 @@ get_current_json(State) ->
 
   Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.runInfo)),
 
-  CpuTimes = concurix_cpu_times:get_cpu_times(),
-  CpuInfos = concurix_cpu_info:get_cpu_info(),
+  {ok, LoadAvg} = concurix_cpu_info:get_load_avg(),
+  {ok, CpuTimes} = concurix_cpu_info:get_cpu_times(),
+  {ok, CpuInfos} = concurix_cpu_info:get_cpu_info(),
   Cpus = [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos],
 
   Send           = [{type,              <<"nodejs">>}, % TODO remove before push
                     {version,           <<"0.1.3">>},
                     {run_id,            list_to_binary(Run_id)},
                     {timestamp,         now_seconds()},
-                    {load_avg,          concurix_cpu_times:get_load_avg()},
+                    {load_avg,          LoadAvg},
                     {cpus,              Cpus},
 
                     {data,              [{nodes,             TempProcs},
