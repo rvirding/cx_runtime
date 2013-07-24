@@ -1,14 +1,16 @@
--record(tcstate, 
-        { 
-          runInfo, 
+-record(tcstate,
+        {
+          runInfo,
 
-          processTable, 
-          linkTable, 
-          sysProfTable, 
-          procLinkTable, 
+          processTable,
+          linkTable,
+          sysProfTable,
+          procLinkTable,
+
+          lastNodes,
 
           traceSupervisor,
 
           collectTraceData,
-          sendUpdates 
+          sendUpdates
         }).

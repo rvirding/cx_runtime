@@ -24,6 +24,8 @@
 
 -include("concurix_runtime.hrl").
 
+-record(last_node, {pid, total_heap_size}).
+
 
 %%
 %% The no-argument start will look for concurix.config, downloading and installing one if necessary
@@ -95,6 +97,9 @@ handle_call({start_tracer, RunInfo, Options},  _From, undefined) ->
                        linkTable        = setup_ets_table(cx_linkstats),
                        sysProfTable     = setup_ets_table(cx_sysprof),
                        procLinkTable    = setup_ets_table(cx_proclink),
+
+                       %% Tables to cache information from last snapshot
+                       lastNodes        = ets:new(cx_lastnodes, [public, {keypos, 2}]),
 
                        traceSupervisor  = undefined,
 
@@ -258,7 +263,6 @@ get_current_json(State) ->
                       {fun_name,        term_to_b(F)},
                       {arity,           A},
                       local_process_info(Pid, reductions),
-                      local_process_info(Pid, total_heap_size),
                       local_process_info(Pid, message_queue_len),
                       term_to_b({service, Service}),
                       {scheduler,       Scheduler},
@@ -266,9 +270,9 @@ get_current_json(State) ->
                       {application,     pid_to_application(Pid)},
                       {num_calls,       1}, % TODO fixme
                       {duration,        1000}, % TODO fixme
-                      {child_duration,  100}, % TODO this isn't even in the spec but is required for the dashboard to work
-                      {mem_delta,       1000} % TODO fixme
-                     ] ||
+                      {child_duration,  100} % TODO this isn't even in the spec but is required for the dashboard to work
+                     ] ++ delta_info(State#tcstate.lastNodes, Pid)
+                     ||
                       {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs ],
 
   TempLinks      = [ [{source,          pid_to_name(A)},
@@ -545,7 +549,20 @@ pid_to_application(Pid) when is_pid(Pid), node(Pid) =:= node() ->
 
 pid_to_application(_Pid) ->
   <<"undefined">>.
-  
+
+delta_info(LastNodes, Pid) ->
+    {total_heap_size, TotalHeapSize} = local_process_info(Pid, total_heap_size),
+    MemDelta =
+        case ets:lookup(LastNodes, Pid) of
+            [] ->
+                TotalHeapSize;
+            [#last_node{total_heap_size=LastTotalHeapSize}] ->
+                 TotalHeapSize - LastTotalHeapSize
+        end,
+    ets:insert(LastNodes, #last_node{pid=Pid, total_heap_size=TotalHeapSize}),
+    [{total_heap_size, TotalHeapSize},
+     {mem_delta, MemDelta}].
+
 %%
 %%
 %%
