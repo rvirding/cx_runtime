@@ -10,7 +10,6 @@ acceptor(L)->
   %% This Erlang process will block until there is a connection request
   case gen_tcp:accept(L) of
     {ok, S} ->
-
       %% Spawn a new Erlang process to listen for another connection request
       spawn(fun() -> acceptor(L) end),
 
@@ -33,7 +32,7 @@ validate_websocket(S) ->
   receive
     {tcp, S, Bin} -> 
       case erlang:decode_packet(http, Bin, []) of
-        { ok, {http_request, 'GET', {abs_path, "/"}, {1, 1}}, Rest } ->
+        { ok, {http_request, 'GET', {abs_path, _}, {1, 1}}, Rest } ->
           validate_websocket_headers(S, Rest, 0, 0, undefined);
 
         _ ->
