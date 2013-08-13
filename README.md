@@ -3,6 +3,8 @@ cx_runtime
 
 The Concurix system for dynamically enhancing the Erlang Virtual Machine
 
+NOTE!!  After August 12 2013, the minimum version required is concurix_runtime_r0.7
+
 Dependencies
 . rebar
 . make

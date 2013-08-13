@@ -1,3 +1,8 @@
+August 12, 2013: concurix_runtime_r0.7
+
+Updated to a new output format.  Note that to use the visualizations you will
+need to upgrade the cx_runtime to this version.
+ 
 March 16:
 
 First release as a public repository
