@@ -50,11 +50,9 @@ handle_info(send_to_viz,                    State) ->
     Json = concurix_runtime:get_current_json(State),
     Request = viz_make_post_http_request(Url, Json),
 
-    %%io:format("~p\n\n\n", [Request]),
+    io:format("~p\n\n\n", [Request]),
 
-    Rep = httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
-
-    io:format("~p\n\n\n", [Rep]),
+    httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
 
     {noreply, State};
 
@@ -74,7 +72,14 @@ code_change(_oldVsn, State, _Extra) ->
 viz_make_post_http_request(Url, Json) ->
     BinLen = io_lib:write(iolist_size(Json)),
     
-    Headers = [{"Concurix-API-Key","1add9c809787226a18cf1b704b10ca34"},
+    Headers = [{"Concurix-API-Key","55"},
 	       %%{"content-type","application/json"},
 	       {"content-length",BinLen}],
     {Url,Headers,"application/json",Json}.
+
+payload_length_to_binary(N) ->
+  case N of
+      N when N =< 125                 -> << N:7 >>;
+      N when N =< 16#ffff             -> << 126:7, N:16 >>;
+      N when N =< 16#7fffffffffffffff -> << 127:7, N:64 >>
+  end.
