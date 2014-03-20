@@ -166,7 +166,13 @@ get_run_info(Config) ->
 
   case Reply of
     {_, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} ->
-      cx_jsx:json_to_term(list_to_binary(Body));
+      RemoteRunInfo = cx_jsx:json_to_term(list_to_binary(Body)),
+      LocalRunInfo = 
+        case config_option(Config, master, run_info) of
+            undefined -> [];
+            {ok, Value} -> Value
+        end,
+      merge_run_info(RemoteRunInfo, LocalRunInfo);
     _ ->
       {Mega, Secs, Micro} = now(), 
       lists:flatten(io_lib:format("local-~p-~p-~p", [Mega, Secs, Micro]))
@@ -652,3 +658,13 @@ careful_process_info(_Pid, _Item) ->
 now_seconds() ->
     {Mega, Secs, _}= now(),
     Mega*1000000 + Secs.
+
+merge_run_info(Remote, Local) ->
+    merge_run_info(Remote, Local, []).
+
+merge_run_info([], _Local, Res) ->
+    Res;
+merge_run_info([{K, V} | T], Local, Res) ->
+    CurrentValue = proplists:get_value(K, Local, V),
+    merge_run_info(T, Local, [{K, CurrentValue} | Res]).
+

@@ -56,7 +56,6 @@ handle_info(send_snapshot, State) ->
   Fields  = snapshot_fields(RunInfo),
   Json    = concurix_runtime:get_current_json(State),
   Request = s3_make_post_http_request(Url, Fields, Json),
-
   httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
 
   {noreply, State};
