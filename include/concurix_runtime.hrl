@@ -12,5 +12,6 @@
           traceSupervisor,
 
           collectTraceData,
-          sendUpdates
+          sendUpdates,
+          trace_mf
         }).

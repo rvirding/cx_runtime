@@ -22,10 +22,13 @@
 
 -export([update_process_info/1, mod_to_service/1, local_translate_initial_call/1, get_current_json/1, mod_to_behaviour/1]).
 
+-export([get_default_json/1]).
+
 -include("concurix_runtime.hrl").
 
 -record(last_node, {pid, total_heap_size}).
 
+-define(DEFAULT_TRACE_MF, {?MODULE, get_default_json}).
 
 %%
 %% The no-argument start will look for concurix.config, downloading and installing one if necessary
@@ -65,7 +68,7 @@ internal_start(Config, Options) ->
     true  ->
       %% Contact concurix.com and obtain Keys for S3
       RunInfo = get_run_info(Config),
-      gen_server:call(?MODULE, { start_tracer, RunInfo, Options });
+      gen_server:call(?MODULE, { start_tracer, RunInfo, Options, Config });
 
     false ->
       { failed, bad_options }
@@ -86,10 +89,10 @@ init([]) ->
   concurix_web_socket:start(),
   {ok, undefined}.
 
-handle_call({start_tracer, RunInfo, Options},  _From, undefined) ->
+handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
   io:format("starting Concurix tracing ~n"),
   %%io:format("Starting tracing with RunId ~p~n", [binary_to_list(proplists:get_value(<<"run_id">>, RunInfo))]),
-
+  TraceMF = config_option(Config, master, trace_mf, ?DEFAULT_TRACE_MF),
   State     = #tcstate{runInfo          = RunInfo,
 
                        %% Tables to communicate between data collectors and data transmitters
@@ -104,7 +107,8 @@ handle_call({start_tracer, RunInfo, Options},  _From, undefined) ->
                        traceSupervisor  = undefined,
 
                        collectTraceData = undefined,
-                       sendUpdates      = undefined
+                       sendUpdates      = undefined,
+                       trace_mf         = TraceMF
                       },
 
   fill_initial_tables(State),
@@ -113,7 +117,7 @@ handle_call({start_tracer, RunInfo, Options},  _From, undefined) ->
 
   {reply, ok, State#tcstate{traceSupervisor = Sup}};
 
-handle_call({start_tracer, _Config, _Options}, _From, State) ->
+handle_call({start_tracer, _Config, _Options, _Config}, _From, State) ->
   io:format("~p:handle_call/3   start_tracer but tracer is already running~n", [?MODULE]),
   {reply, ok, State};
 
@@ -178,6 +182,11 @@ get_run_info(Config) ->
       lists:flatten(io_lib:format("local-~p-~p-~p", [Mega, Secs, Micro]))
   end.
 
+config_option(Config, Slot, Key, Default) ->
+  case config_option(Config, Slot, Key) of
+    undefined -> Default;
+    {ok, Value} -> Value
+  end.
 
 config_option([], _Slot, _Key) ->
   undefined;
@@ -242,7 +251,11 @@ code_change(_oldVsn, State, _Extra) ->
 %%
 %% 
 
-get_current_json(State) ->
+get_current_json(#tcstate{trace_mf = TraceMF} = State) ->
+  {Module, Function} = TraceMF,
+  Module:Function(State).
+
+get_default_json(State) ->
   ets:safe_fixtable(State#tcstate.processTable,  true),
   ets:safe_fixtable(State#tcstate.linkTable,     true),
   ets:safe_fixtable(State#tcstate.sysProfTable,  true),
