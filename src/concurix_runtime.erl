@@ -665,6 +665,7 @@ merge_run_info(Remote, Local) ->
 merge_run_info([], _Local, Res) ->
     Res;
 merge_run_info([{K, V} | T], Local, Res) ->
-    CurrentValue = proplists:get_value(K, Local, V),
+    Key = list_to_atom(binary_to_list(K)),
+    CurrentValue = proplists:get_value(Key, Local, V),
     merge_run_info(T, Local, [{K, CurrentValue} | Res]).
 
