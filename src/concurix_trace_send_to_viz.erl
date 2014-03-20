@@ -54,7 +54,7 @@ handle_info(send_to_viz,                    State) ->
 
     Rep = httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
 
-    io:format("~p\n\n\n", [Rep]),
+    %%io:format("~p\n\n\n", [Rep]),
 
     {noreply, State};
 

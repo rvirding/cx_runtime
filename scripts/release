@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -sname release -pa deps/gproc/ebin ebin
+%%! -sname release -pa ebin
 
 %% Construct the boot script files for a concurix_runtime release.
 %% To be run from the concurix_runtime top-level directory after building the .app files.

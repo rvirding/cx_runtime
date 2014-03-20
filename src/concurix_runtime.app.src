@@ -15,9 +15,6 @@
                             concurix_trace_by_scheduler,
 
                             concurix_send_to_viz,
-                            concurix_web_socket,
-
-                            concurix_send_to_S3,
 
                             cx_jsx,
                             cx_jsx_eep0018,
@@ -25,7 +22,7 @@
                           ]},
   {registered,            []},
   {included_applications, []},
-  {applications,          [kernel, stdlib, crypto, gproc]},
+  {applications,          [kernel, stdlib, crypto]},
   {env,                   []},
   {mod,                   {concurix_runtime_app, []}}
  ]}.

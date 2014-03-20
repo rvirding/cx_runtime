@@ -10,7 +10,6 @@
   {concurix_runtime, "0.1"},
   {compiler, "4.8.2"},
   {crypto, "2.2"},
-  {gproc, "0.2.15"},
   {inets, "5.9.1"},
   {public_key, "0.16"},
   {sasl, "2.2.1"},

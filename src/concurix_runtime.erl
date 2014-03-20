@@ -56,7 +56,6 @@ internal_start(Config, Options) ->
   application:start(crypto),
   application:start(inets),
 
-  application:start(gproc),
   application:start(ssl),
   application:start(timer),
 
@@ -66,7 +65,6 @@ internal_start(Config, Options) ->
 
   case tracer_is_enabled(Options) of
     true  ->
-      %% Contact concurix.com and obtain Keys for S3
       RunInfo = get_run_info(Config),
       gen_server:call(?MODULE, { start_tracer, RunInfo, Options, Config });
 
@@ -86,7 +84,6 @@ start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
-  concurix_web_socket:start(),
   {ok, undefined}.
 
 handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
@@ -134,7 +131,7 @@ handle_call(stop_tracer, _From, State) ->
 
 %%
 tracer_is_enabled(Options) ->
-  tracer_is_enabled(Options, [ msg_trace, enable_sys_profile, enable_send_to_viz, enable_send_to_S3 ]).
+  tracer_is_enabled(Options, [ msg_trace, enable_sys_profile, enable_send_to_viz ]).
 
 tracer_is_enabled([], _TracerOptions) ->
   false;

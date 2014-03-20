@@ -33,12 +33,10 @@ init([State, Options]) ->
 
   StateTrace = State#tcstate{collectTraceData = enable_trace(Options)},
   StateViz   = State#tcstate{sendUpdates      = enable_viz  (Options)},
-  StateS3    = State#tcstate{sendUpdates      = enable_s3   (Options)},
 
   Children   = [
                  {proc, {concurix_trace_by_process,   start_link, [StateTrace]}, transient, Terminate, worker, [concurix_trace_by_process]},
-                 {viz,  {concurix_trace_send_to_viz,  start_link, [StateViz]},   transient, Terminate, worker, [concurix_trace_send_to_viz]},
-                 {s3,   {concurix_trace_send_to_S3,   start_link, [StateS3]},    transient, Terminate, worker, [concurix_trace_send_to_S3]}
+                 {viz,  {concurix_trace_send_to_viz,  start_link, [StateViz]},   transient, Terminate, worker, [concurix_trace_send_to_viz]}
                ],
 
   {ok, {{one_for_one, 1, 60}, Children}}.
@@ -49,10 +47,6 @@ enable_trace(_Options) ->
 
 enable_viz(_Options) ->
   true.
-
-enable_s3(_Options) ->
-  true.
-
 
 %% Exported API for starting and stopping the 2 collectors and 2 transmitters owned by this supervisor
 stop_tracing(Pid) ->
@@ -78,9 +72,6 @@ stopTracers(_Other) ->
 
 %% Stop the two data senders
 stopSenders({viz, Pid, worker, _Args}) ->
-  Pid ! stop_updating;
-
-stopSenders({s3,  Pid, worker, _Args}) ->
   Pid ! stop_updating;
 
 stopSenders(_Other) ->
