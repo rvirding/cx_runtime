@@ -51,7 +51,7 @@ code_change(_oldVsn, State, _Extra) ->
 handle_info({trace, Creator, spawn, Pid, Data}, State) ->
   case Data of 
     {proc_lib, init_p, _ProcInfo} ->
-      {Mod, Fun, Arity} = concurix_runtime:local_translate_initial_call(Pid),
+      {Mod, Fun, Arity} = concurix_lib:local_translate_initial_call(Pid),
       ok;
 
     {erlang, apply, [TempFun, _Args]} ->
@@ -68,8 +68,8 @@ handle_info({trace, Creator, spawn, Pid, Data}, State) ->
       Arity = 0
   end,
 
-  Service   = concurix_runtime:mod_to_service(Mod),
-  Behaviour = concurix_runtime:mod_to_behaviour(Mod),
+  Service   = concurix_lib:mod_to_service(Mod),
+  Behaviour = concurix_lib:mod_to_behaviour(Mod),
   Key        = {Pid, {Mod, Fun, Arity}, Service, 1, Behaviour},
 
   ets:insert(State#tcstate.processTable, Key),
@@ -187,7 +187,7 @@ decode_anon_fun(Fun) ->
 update_proc_table(Pid, State) ->
   case ets:lookup(State#tcstate.processTable, Pid) of
     [] ->
-      [{Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour}] = concurix_runtime:update_process_info(Pid),
+      [{Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour}] = concurix_lib:update_process_info(Pid),
       ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
 
     _ ->

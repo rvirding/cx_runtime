@@ -48,12 +48,11 @@ handle_info(send_to_viz, #tcstate{apiKey = APIKey,
     end,
 
     Url = binary_to_list(proplists:get_value(<<"trace_url">>, RunInfo)),
-    Json = concurix_runtime:get_current_json(State),
+    Json = concurix_lib:get_current_json(State),
   
     Request = viz_make_post_http_request(Url, Json, APIKey),
 
     httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
-
     {noreply, State};
 
 handle_info(stop_updating,                  State) ->

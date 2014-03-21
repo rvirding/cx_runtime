@@ -3,7 +3,7 @@ REBAR:=$(shell which rebar 2> /dev/null || echo ./rebar)
 DESTDIR              = /usr/local/lib/erlang
 CXRUN_INSTALL_DIR    = $(DESTDIR)/lib/concurix_runtime-0.1
 
-.PHONY: all erl test clean doc install release
+.PHONY: all erl test clean doc install release xcompile
 
 all: erl
 
@@ -30,6 +30,8 @@ install-cx-runtime:
 
 install: install-cx-runtime
 
+xcompile:
+	$(REBAR) compile xref skip_deps=true
 
 release:
 	scripts/release

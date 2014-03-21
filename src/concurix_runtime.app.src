@@ -8,6 +8,7 @@
                             concurix_runtime_sup,
 
                             concurix_runtime,
+                            concurix_lib,
 
                             concurix_trace_supervisor,
 
