@@ -88,6 +88,7 @@ init([]) ->
 
 handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
   io:format("starting Concurix tracing ~n"),
+  {ok, APIKey} = config_option(Config, master, api_key),
   %%io:format("Starting tracing with RunId ~p~n", [binary_to_list(proplists:get_value(<<"run_id">>, RunInfo))]),
   TraceMF = config_option(Config, master, trace_mf, ?DEFAULT_TRACE_MF),
   State     = #tcstate{runInfo          = RunInfo,
@@ -105,7 +106,8 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
 
                        collectTraceData = undefined,
                        sendUpdates      = undefined,
-                       trace_mf         = TraceMF
+                       traceMf          = TraceMF,
+                       apiKey           = APIKey
                       },
 
   fill_initial_tables(State),
@@ -241,14 +243,8 @@ terminate(_Reason, State) ->
  
 code_change(_oldVsn, State, _Extra) ->
   {ok, State}.
- 
- 
 
-%%
-%%
-%% 
-
-get_current_json(#tcstate{trace_mf = TraceMF} = State) ->
+get_current_json(#tcstate{traceMf = TraceMF} = State) ->
   {Module, Function} = TraceMF,
   Module:Function(State).
 

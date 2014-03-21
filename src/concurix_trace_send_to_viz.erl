@@ -38,23 +38,21 @@ handle_call(_Call, _From, State) ->
 handle_cast(_Msg, State) ->
   {noreply, State}.
  
-handle_info(send_to_viz,                    State) ->
+handle_info(send_to_viz, #tcstate{apiKey = APIKey,
+                                  sendUpdates = SendUpdates,
+                                  runInfo = RunInfo} = State) ->
     if 
-	(State#tcstate.sendUpdates == true) ->
+	(SendUpdates == true) ->
 	    timer:send_after(?TIMER_INTERVAL_VIZ, send_to_viz);
 	true -> ok
     end,
 
-    RunInfo = State#tcstate.runInfo,
-    Url = "http://results.concurix.com:9090/results",
+    Url = binary_to_list(proplists:get_value(<<"trace_url">>, RunInfo)),
     Json = concurix_runtime:get_current_json(State),
-    Request = viz_make_post_http_request(Url, Json),
+  
+    Request = viz_make_post_http_request(Url, Json, APIKey),
 
-    %%io:format("~p\n\n\n", [Request]),
-
-    Rep = httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
-
-    %%io:format("~p\n\n\n", [Rep]),
+    httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
 
     {noreply, State};
 
@@ -71,10 +69,10 @@ terminate(_Reason, _State) ->
 code_change(_oldVsn, State, _Extra) ->
   {ok, State}.
 
-viz_make_post_http_request(Url, Json) ->
+viz_make_post_http_request(Url, Json, APIKey) ->
     BinLen = io_lib:write(iolist_size(Json)),
     
-    Headers = [{"Concurix-API-Key","1add9c809787226a18cf1b704b10ca34"},
+    Headers = [{"Concurix-API-Key", APIKey},
 	       %%{"content-type","application/json"},
 	       {"content-length",BinLen}],
     {Url,Headers,"application/json",Json}.

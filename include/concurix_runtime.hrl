@@ -13,5 +13,6 @@
 
           collectTraceData,
           sendUpdates,
-          trace_mf
+          traceMf,
+          apiKey
         }).
