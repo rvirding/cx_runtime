@@ -73,6 +73,6 @@ viz_make_post_http_request(Url, Json, APIKey) ->
     BinLen = io_lib:write(iolist_size(Json)),
     
     Headers = [{"Concurix-API-Key", APIKey},
-	       %%{"content-type","application/json"},
+	       {"content-type","application/json"},
 	       {"content-length",BinLen}],
     {Url,Headers,"application/json",Json}.

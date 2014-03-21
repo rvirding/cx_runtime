@@ -708,13 +708,25 @@ get_json_for_proxy(State) ->
                      end
              end,
 
-  TempProcs      = [ [{id,              pid_to_b(Pid)},
+  TempProcs      = [ [{id,              get_pid_app_name(Pid)},
+                      {proxyId,         <<"1823a94bdcd7ef6f61772e46c0610942">>},
                       {pid,             ospid_to_b()},
-                      {name,            pid_to_name(Pid)},
+                      {name,            get_pid_app_name(Pid)},
                       {module,          [{top, term_to_b(M)}, % TODO is this correct?
                                          {requireId, term_to_b(M)},
                                          {id, mod_to_id(M)}]},
                       {fun_name,        term_to_b(F)},
+                      {line,            <<"0">>},
+                      {start,           <<"391216792868">>},
+                      {next_level,      <<"NaN">>},
+                      {merge, [
+                        {'Function', <<"merge">>},
+                        {length, <<"1">>},
+                        {name, <<"merge">>},
+                        {arguments, <<"null">>},
+                        {caller, <<"null">>},
+                        {prototype, <<"null">>}
+                      ]},
                       {arity,           A},
                       local_process_info(Pid, reductions),
                       local_process_info(Pid, message_queue_len),
@@ -768,20 +780,71 @@ get_json_for_proxy(State) ->
         Cpus = []
   end,
 
-  Send           = [{method, <<"Concurix.traces">>},
-                    {result, 
-                      [{type,              <<"erlang">>},
+  Send           =   [{type,              <<"erlang">>},
                       {version,           <<"0.1.4">>},
-                      {run_id,            list_to_binary(Run_id)},
+
+                      {tracing_interval,   2000},
+                      {hostname,           get_hostname()},
+                      {pid,                11088},
+
+                      {load_avg, [39.3, 38.2, 40.8]},
+
+                      {cpus, [
+
+                      ]},
+
+                      {process_info, [
+                        {memory,  [
+                          {rss, 15839232}, 
+                          {heapTotal, 10324992}, 
+                          {heapUsed, 4810784}
+                        ]},
+
+                        {uptime, 2},
+                        {active_requests, 0},
+                        {active_handles, 2},
+                        {versions, [
+                          {http_parser, <<"1.0">>},
+                          {node, <<"0.10.25">>},
+                          {v8, <<"3.14.5.9">>},
+                          {ares, <<"1.9.0-DEV">>},
+                          {uv, <<"0.10.23">>},
+                          {zlib, <<"1.2.3">>},
+                          {modules, <<"11">>},
+                          {openssl, <<"1.0.1e">>}
+                        ]},
+                        {environment, <<"default">>}
+                      ]},
+
+                      {system_info, [
+                        {freemem, 670539776},
+                        {totalmem, 8589934592},
+                        {arch, <<"x64">>},
+                        {platform, <<"darwin">>},
+                        {uptime, 917380.0}
+                      ]},
+
                       {timestamp,         now_seconds()},
-                      {load_avg,          LoadAvg},
-                      {cpus,              Cpus},
 
                       {data,              [{nodes,             TempProcs},
                                            {links,             TempLinks},
                                            {proclinks,         ProcLinks},
-                                           {schedulers,        Schedulers}]}]}],
+                                           {schedulers,        Schedulers}]}],
 
   cx_jsx_eep0018:term_to_json(Send, []).
 
 
+
+-spec get_pid_app_name(Pid :: pid()) -> binary().
+get_pid_app_name(Pid) ->
+  case (catch application:get_application(Pid)) of
+    {ok, Application} ->
+      list_to_binary(atom_to_list(Application));
+    _ ->
+      <<"undefined">>
+  end.
+
+-spec get_hostname() -> binary().
+get_hostname() ->
+  {ok, HostName} = inet:gethostname(),
+  list_to_binary(HostName).
