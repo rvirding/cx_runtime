@@ -18,11 +18,14 @@
 
 -export([start/0, start/2, start_link/0, stop/0]).
 
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
+         terminate/2, code_change/3]).
 
--export([update_process_info/1, mod_to_service/1, local_translate_initial_call/1, get_current_json/1, mod_to_behaviour/1]).
+-export([update_process_info/1, mod_to_service/1, 
+         local_translate_initial_call/1, get_current_json/1, 
+         mod_to_behaviour/1]).
 
--export([get_default_json/1]).
+-export([get_default_json/1, get_json_for_proxy/1]).
 
 -include("concurix_runtime.hrl").
 
@@ -433,8 +436,6 @@ term_to_b(Term) ->
   list_to_binary(lists:flatten(io_lib:format("~p", [Term]))).
   
 
-
-
 %%
 %%
 %%
@@ -674,4 +675,113 @@ merge_run_info([{K, V} | T], Local, Res) ->
     Key = list_to_atom(binary_to_list(K)),
     CurrentValue = proplists:get_value(Key, Local, V),
     merge_run_info(T, Local, [{K, CurrentValue} | Res]).
+
+
+get_json_for_proxy(State) ->
+  ets:safe_fixtable(State#tcstate.processTable,  true),
+  ets:safe_fixtable(State#tcstate.linkTable,     true),
+  ets:safe_fixtable(State#tcstate.sysProfTable,  true),
+  ets:safe_fixtable(State#tcstate.procLinkTable, true),
+
+  RawProcs       = ets:tab2list(State#tcstate.processTable),
+  RawLinks       = ets:tab2list(State#tcstate.linkTable),
+  RawSys         = ets:tab2list(State#tcstate.sysProfTable),
+  RawProcLink    = ets:tab2list(State#tcstate.procLinkTable),
+
+  {Procs, Links} = validate_tables(RawProcs, RawLinks, State),
+
+  ets:safe_fixtable(State#tcstate.sysProfTable,  false),
+  ets:safe_fixtable(State#tcstate.linkTable,     false),
+  ets:safe_fixtable(State#tcstate.processTable,  false),
+  ets:safe_fixtable(State#tcstate.procLinkTable, false),
+
+  CallTotals = lists:foldl(fun ({{Source, _Target}, NumCalls, _WordsSent, _Start}, Acc) ->
+                                   dict:update_counter(Source, NumCalls, Acc)
+                           end,
+                           dict:new(),
+                           Links),
+
+  NumCalls = fun (Pid) ->
+                     case dict:find(Pid, CallTotals) of
+                         {ok, Value} -> Value;
+                         error -> 0
+                     end
+             end,
+
+  TempProcs      = [ [{id,              pid_to_b(Pid)},
+                      {pid,             ospid_to_b()},
+                      {name,            pid_to_name(Pid)},
+                      {module,          [{top, term_to_b(M)}, % TODO is this correct?
+                                         {requireId, term_to_b(M)},
+                                         {id, mod_to_id(M)}]},
+                      {fun_name,        term_to_b(F)},
+                      {arity,           A},
+                      local_process_info(Pid, reductions),
+                      local_process_info(Pid, message_queue_len),
+                      term_to_b({service, Service}),
+                      {scheduler,       Scheduler},
+                      {behaviour,       Behaviour},
+                      {application,     pid_to_application(Pid)},
+                      {num_calls,       NumCalls(Pid)},
+                      {duration,        1000}, % TODO fixme
+                      {child_duration,  100} % TODO this isn't even in the spec but is required for the dashboard to work
+                     ] ++ delta_info(State#tcstate.lastNodes, Pid)
+                     ||
+                      {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs ],
+
+  TempLinks      = [ [{source,          pid_to_name(A)},
+                      {target,          pid_to_name(B)},
+                      {type,            <<"message">>},
+                      {total_delay,     100}, % TODO fixme
+                      {start,           Start},
+                      {num_calls,       C},
+                      {words_sent,      D}] ||
+                      {{A, B}, C, D, Start} <- Links],
+
+  ProcLinks       = [ [{source,         pid_to_name(A)},
+                       {target,         pid_to_name(B)}]
+                      || {A, B} <- RawProcLink],
+
+  Schedulers     = [ [{scheduler,       Id},
+                      {process_create,  Create},
+                      {quanta_count,    QCount},
+                      {quanta_time,     QTime},
+                      {send,            Send},
+                      {gc,              GC},
+                      {true_call_count, True},
+                      {tail_call_count, Tail},
+                      {return_count,    Return},
+                      {process_free,    Free}] ||
+                      {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
+
+  Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.runInfo)),
+
+
+  case os:type() of
+      {unix, linux} ->
+        {ok, LoadAvg} = concurix_cpu_info:get_load_avg(),
+        {ok, CpuTimes} = concurix_cpu_info:get_cpu_times(),
+        {ok, CpuInfos} = concurix_cpu_info:get_cpu_info(),
+        Cpus = [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos];
+      _ ->
+        LoadAvg = [],
+        Cpus = []
+  end,
+
+  Send           = [{method, <<"Concurix.traces">>},
+                    {result, 
+                      [{type,              <<"erlang">>},
+                      {version,           <<"0.1.4">>},
+                      {run_id,            list_to_binary(Run_id)},
+                      {timestamp,         now_seconds()},
+                      {load_avg,          LoadAvg},
+                      {cpus,              Cpus},
+
+                      {data,              [{nodes,             TempProcs},
+                                           {links,             TempLinks},
+                                           {proclinks,         ProcLinks},
+                                           {schedulers,        Schedulers}]}]}],
+
+  cx_jsx_eep0018:term_to_json(Send, []).
+
 
