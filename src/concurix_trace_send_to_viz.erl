@@ -22,8 +22,6 @@
 
 -include("concurix_runtime.hrl").
 
--define(TIMER_INTERVAL_VIZ, 2 * 1000).    %% Update VIZ every 2 seconds
-
 start_link(State) ->
   gen_server:start_link(?MODULE, [State], []).
 

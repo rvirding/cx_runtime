@@ -159,7 +159,7 @@ parse_opts([multi_term|Rest], Opts) ->
 parse_opts([{encoding, _}|Rest], Opts) ->
     parse_opts(Rest, Opts);
 parse_opts(_, _) ->
-    {error, badarg}.
+    {error, badopt}.
 
 
 

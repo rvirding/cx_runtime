@@ -353,7 +353,7 @@ get_json_for_proxy(State) ->
   Send           =   [{type,              <<"erlang">>},
                       {version,           <<"0.1.4">>},
 
-                      {tracing_interval,   2000},
+                      {tracing_interval,   ?TIMER_INTERVAL_VIZ},
                       {hostname,           get_hostname()},
                       {pid,                11088},
 
@@ -506,8 +506,7 @@ mod_to_id(Mod) when is_atom(Mod) ->
 pid_to_application(Pid) when is_pid(Pid), node(Pid) =:= node() ->
   case application:get_application(Pid) of
     undefined -> <<"undefined">>;
-    {ok, App} -> atom_to_binary(App, latin1);
-    _X        -> <<"undefined">>
+    {ok, App} -> atom_to_binary(App, latin1)
   end;
 
 pid_to_application(_Pid) ->

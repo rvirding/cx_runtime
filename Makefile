@@ -1,3 +1,14 @@
+ERLANG_DIALYZER_APPS = \
+	erts \
+	kernel \
+	stdlib \
+	crypto \
+	public_key \
+	inets \
+	xmerl \
+	sasl \
+	mnesia
+
 REBAR:=$(shell which rebar 2> /dev/null || echo ./rebar)
 
 DESTDIR              = /usr/local/lib/erlang
@@ -35,6 +46,12 @@ xcompile:
 
 release:
 	scripts/release
+
+.dialyzer_plt:
+	dialyzer --output_plt .dialyzer_plt --build_plt --apps $(ERLANG_DIALYZER_APPS)
+
+analyze: erl .dialyzer_plt
+	dialyzer --no_check_plt --no_native -Wrace_conditions -Wno_return --plt .dialyzer_plt --apps ebin
 
 install-cx-boot: install
 	install scripts/concurix_runtime.boot                $(DESTDIR)/bin
