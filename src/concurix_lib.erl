@@ -247,7 +247,7 @@ get_default_json(State) ->
 
   cx_jsx_eep0018:term_to_json(Send, []).
 
-get_json_for_proxy(State) ->
+get_json_for_proxy(#tcstate{filterDirs = FilterDirs} = State) ->
   ets:safe_fixtable(State#tcstate.processTable,  true),
   ets:safe_fixtable(State#tcstate.linkTable,     true),
   ets:safe_fixtable(State#tcstate.sysProfTable,  true),
@@ -278,13 +278,19 @@ get_json_for_proxy(State) ->
                      end
              end,
 
-  TempProcs      = [ [{id,              get_pid_app_name(Pid)},
-                      {proxyId,         <<"1823a94bdcd7ef6f61772e46c0610942">>},
+  TempProcs      = [ [
+                      {id,              pid_to_name(Pid)},
                       {pid,             ospid_to_b()},
-                      {name,            get_pid_app_name(Pid)},
-                      {module,          [{top, term_to_b(M)}, % TODO is this correct?
-                                         {requireId, term_to_b(M)},
-                                         {id, mod_to_id(M)}]},
+                      {name,            pid_to_name(Pid)},
+                      {module,[
+                        {top, begin ModuleBin = term_to_b(M),
+                                    PidBin = term_to_b(Pid),
+                                    <<ModuleBin/binary, <<"_">>/binary, 
+                                      PidBin/binary>>
+                              end},
+                        {requireId, term_to_b(M)},
+                        {id, mod_to_id(M)}
+                      ]},
                       {fun_name,        term_to_b(F)},
                       {line,            <<"0">>},
                       {start,           <<"391216792868">>},
@@ -309,7 +315,8 @@ get_json_for_proxy(State) ->
                       {child_duration,  100} % TODO this isn't even in the spec but is required for the dashboard to work
                      ] ++ delta_info(State#tcstate.lastNodes, Pid)
                      ||
-                      {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs ],
+                      {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs],
+%                      filter_module_by_dir(M, FilterDirs)],
 
   TempLinks      = [ [{source,          pid_to_name(A)},
                       {target,          pid_to_name(B)},
@@ -317,12 +324,16 @@ get_json_for_proxy(State) ->
                       {total_delay,     100}, % TODO fixme
                       {start,           Start},
                       {num_calls,       C},
-                      {words_sent,      D}] ||
-                      {{A, B}, C, D, Start} <- Links],
+                      {words_sent,      D}] 
+                        || {{A, B}, C, D, Start} <- Links,
+                           filter_pid_by_dir(A, Procs, FilterDirs),
+                           filter_pid_by_dir(A, Procs, FilterDirs)],
 
   ProcLinks       = [ [{source,         pid_to_name(A)},
                        {target,         pid_to_name(B)}]
-                      || {A, B} <- RawProcLink],
+                      || {A, B} <- RawProcLink,
+                         filter_pid_by_dir(A, Procs, FilterDirs),
+                         filter_pid_by_dir(A, Procs, FilterDirs)],
 
   Schedulers     = [ [{scheduler,       Id},
                       {process_create,  Create},
@@ -581,3 +592,30 @@ validate_tables(Procs, Links, _State) ->
 
   NewProcs    = update_process_info(Updateprocs, []),
   {Procs ++ NewProcs, Links}.
+
+filter_pid_by_dir(Pid, Procs, FilterDirs) ->
+  case lists:keyfind(Pid, 1, Procs) of
+    false  ->
+      false;
+    {Pid, {M, _F, _A}, _, _, _} ->
+      filter_module_by_dir(M, FilterDirs)
+  end.
+
+filter_module_by_dir(Module, FilterDirs) ->
+  case (catch code:which(Module)) of
+    Location when is_list(Location) ->
+      filter_module(FilterDirs, Location);
+    _ ->
+      false
+  end.
+
+filter_module([], _Path) ->
+  true;
+filter_module([FilterDir | T], Path) ->
+  case string:str(Path, FilterDir) of
+    1 ->
+      false;
+    _ ->
+      filter_module(T, Path)
+  end.
+

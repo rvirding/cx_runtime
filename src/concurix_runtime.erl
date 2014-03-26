@@ -86,6 +86,7 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
   io:format("starting Concurix tracing ~n"),
   {ok, APIKey} = config_option(Config, master, api_key),
   TraceMF = config_option(Config, master, trace_mf, ?DEFAULT_TRACE_MF),
+  FilterDirs = config_option(Config, master, filter_directories, []),
   State     = #tcstate{runInfo          = RunInfo,
 
                        %% Tables to communicate between data collectors and data transmitters
@@ -102,7 +103,8 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
                        collectTraceData = undefined,
                        sendUpdates      = undefined,
                        traceMf          = TraceMF,
-                       apiKey           = APIKey
+                       apiKey           = APIKey,
+                       filterDirs       = FilterDirs
                       },
 
   fill_initial_tables(State),
