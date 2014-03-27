@@ -36,6 +36,14 @@
 %%% External functions
 %%%=============================================================================
 
+%%------------------------------------------------------------------------------
+%% @doc 
+%% Returns the value of the config option from a proplist stored within a
+%% an other proplist. The second parameter is the key within this larger
+%% proplist, the third is the key of the proplist inside.
+%% If not found the value of the last parameter is given back.
+%% @end
+%%------------------------------------------------------------------------------ 
 -spec config_option(proplists:proplist(), atom(), atom(), term()) -> term().
 config_option(Config, Slot, Key, Default) ->
   case config_option(Config, Slot, Key) of
@@ -43,6 +51,13 @@ config_option(Config, Slot, Key, Default) ->
     {ok, Value} -> Value
   end.
 
+%%------------------------------------------------------------------------------
+%% @doc 
+%% Returns the value of the config option from a proplist stored within a
+%% an other proplist. The second parameter is the key within this larger
+%% proplist, the third is the key of the proplist inside.
+%% @end
+%%------------------------------------------------------------------------------ 
 -spec config_option(proplists:proplist(), atom(), atom()) -> term().
 config_option([], _Slot, _Key) ->
   undefined;
@@ -59,22 +74,28 @@ config_option([{Key, Value} | _Tail], Key) ->
 config_option([_Head | Tail], Key) ->
   config_option(Tail, Key).
 
-%%
+%%------------------------------------------------------------------------------
+%% @doc
 %% process_info is defined to throw an exception if Pid is not local
 %%
 %% This version verifies that the PID is for the current node
 %% The callers to this function already have business logic for 'undefined'
-%%
+%% @end
+%%------------------------------------------------------------------------------
 -spec careful_process_info(Pid, Item) -> Result when
   Pid :: pid(),
   Item :: atom(),
   Result :: term().
 careful_process_info(Pid, Item) when node(Pid) =:= node() ->
   process_info(Pid, Item);
-
 careful_process_info(_Pid, _Item) ->
   undefined.
 
+%%------------------------------------------------------------------------------
+%% @doc
+%% Figures out which function started the process instance.
+%% @end
+%%------------------------------------------------------------------------------
 -spec local_translate_initial_call(Pid) -> Result when
   Pid :: pid(),
   Result :: {Module :: atom(), Function :: atom(), Arity :: integer()}.
@@ -85,6 +106,11 @@ local_translate_initial_call(Pid) when is_atom(Pid) ->
 local_translate_initial_call({Pid, _X}) ->
   local_translate_initial_call(Pid).
 
+%%------------------------------------------------------------------------------
+%% @doc
+%% Returns the directory name as a string which contains the module.
+%% @end
+%%------------------------------------------------------------------------------
 -spec mod_to_service(Mod) -> Result when
   Mod :: atom() | string(),
   Result :: string().
@@ -99,6 +125,12 @@ mod_to_service(Mod) ->
       path_to_service(Path)
   end.
 
+%%------------------------------------------------------------------------------
+%% @doc
+%% Returns the name of the behaviours which is implemented by the module.
+%% The names of the behaviours are returned as binaries.
+%% @end
+%%------------------------------------------------------------------------------
 -spec mod_to_behaviours(Mod) -> Result when
   Mod :: atom() | string(),
   Result :: nonempty_list(binary()). 
@@ -131,7 +163,9 @@ mod_to_behaviours(Mod) ->
   end,
   [atom_to_binary(X, latin1) || X <- Behaviour].
 
-
+%%------------------------------------------------------------------------------
+%% @doc
+%%------------------------------------------------------------------------------
 -spec update_process_info(Pid) -> Result when
   Pid :: pid(),
   Result :: [{Pid, {M, F, A}, Service, Calls, Behaviours}],
@@ -145,6 +179,9 @@ mod_to_behaviours(Mod) ->
 update_process_info(Pid) ->
   update_process_info([Pid], []).
 
+%%------------------------------------------------------------------------------
+%% @doc
+%%------------------------------------------------------------------------------
 -spec update_process_info(Pids, Acc) -> Result when
   Pids :: list(pid()),
   Acc :: list(),
@@ -191,11 +228,24 @@ update_process_info([Pid | T], Acc) ->
 
   update_process_info(T, [{Pid, {Mod, Fun, Arity}, Service, 1, Behaviours} | Acc]).
 
+%%------------------------------------------------------------------------------
+%% @doc
+%% Returns the trace data as a json object converted to binary format.
+%% The name of the function which implements the calculation of the json 
+%% object is specified in the config file. If not specified there,
+%% get_default_json/1 will be called.
+%% @end
+%%------------------------------------------------------------------------------
 -spec get_current_json(State :: #tcstate{}) -> binary().
 get_current_json(#tcstate{trace_mf = TraceMF} = State) ->
   {Module, Function} = TraceMF,
   Module:Function(State).
 
+%%------------------------------------------------------------------------------
+%% @doc
+%% Default implementation of the function which calculates the output json.
+%% @end
+%%------------------------------------------------------------------------------
 -spec get_default_json(State :: #tcstate{}) -> binary().
 get_default_json(State) ->
   ets:safe_fixtable(State#tcstate.process_table,  true),
@@ -302,6 +352,12 @@ get_default_json(State) ->
 
   cx_jsx_eep0018:term_to_json(Send, []).
 
+%%------------------------------------------------------------------------------
+%% @doc
+%% This new implementation which should be used in the config file now
+%% will give back a json in the new format required by the proxy server.
+%% @end
+%%------------------------------------------------------------------------------
 -spec get_json_for_proxy(State :: #tcstate{}) -> binary().
 get_json_for_proxy(State) ->
   ets:safe_fixtable(State#tcstate.process_table,  true),
@@ -460,10 +516,11 @@ get_json_for_proxy(State) ->
 
   cx_jsx_eep0018:term_to_json(Send, []).
 
+
+
 %%%=============================================================================
 %%% Internal functions
 %%%=============================================================================
-
 pid_to_name(Pid) ->
   << (ospid_to_b())/binary, ":", (pid_to_b(Pid))/binary >>.
 
@@ -642,4 +699,3 @@ try_get_regname(Pid) ->
     {registered_name, Name} -> Name;
     _ -> Pid
   end.
-

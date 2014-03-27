@@ -31,7 +31,7 @@ clean:
 	-rm -rvf deps ebin doc .eunit
 
 doc:
-	$(REBAR) doc
+	$(REBAR) doc skip_deps=true
 
 install-cx-runtime: 
 	install -d $(CXRUN_INSTALL_DIR)

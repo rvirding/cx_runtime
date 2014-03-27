@@ -110,7 +110,6 @@ format_object({event, {key, Key}, Next}, Acc, Opts, Level) ->
                 space(Opts), 
                 Value
             ]};
-
         Else -> 
             format_object(Else, 
                 [Acc, 

@@ -25,15 +25,17 @@
 
 -define(DEFAULT_TRACE_MF, {?MODULE, get_default_json}).
 
-
 %%==============================================================================
 %% External functions
 %%==============================================================================
 
-%%
-%% The no-argument start will look for concurix.config, downloading and 
-%% installing one if necessary
-%%
+%%------------------------------------------------------------------------------
+%% @doc
+%% Starts the monitoring application.
+%% When started with no parameters a default config will be downloaded from
+%% a concurix server, and it will be used during the tracing.
+%% @end
+%%------------------------------------------------------------------------------
 -spec start() -> {ok, pid()} | {error, Reason :: term()}. 
 start() ->
   application:start(inets),
@@ -47,6 +49,13 @@ start() ->
       {error, Error}
   end.
 
+%%------------------------------------------------------------------------------
+%% @doc
+%% Starts the monitoring application.
+%% First pameter is the path to the config file, Option is a list of config
+%% options.
+%% @end
+%%------------------------------------------------------------------------------
 -spec start(FileName, Options) -> {ok, pid()} | {error, Reason :: term()} when
   FileName :: file:name_all(),
   Options :: list().
@@ -57,33 +66,17 @@ start(Filename, Options) ->
   {ok, Config, _File} = file:path_consult([CWD | Dirs], Filename),
   internal_start(Config, Options).
 
-internal_start(Config, Options) ->
-  application:start(crypto),
-  application:start(inets),
-
-  application:start(ssl),
-  application:start(timer),
-
-  ssl:start(),
-
-  ok = application:start(concurix_runtime),
-
-  case tracer_is_enabled(Options) of
-    true  ->
-      RunInfo = get_run_info(Config),
-      gen_server:call(?MODULE, { start_tracer, RunInfo, Options, Config });
-    false ->
-      {error, {failed, bad_options}}
-  end.
-
+%%------------------------------------------------------------------------------
+%% @doc stop tracing
+%%------------------------------------------------------------------------------
 -spec stop() -> ok.
 stop() ->
   gen_server:call(?MODULE, stop_tracer),
   ok.
 
-%%
-%% gen_server support
-%%
+%%------------------------------------------------------------------------------
+%% @doc Start the gen_server
+%%------------------------------------------------------------------------------
 -spec start_link() -> {ok, pid()}.
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -156,6 +149,25 @@ tracer_is_enabled([Head | Tail], TracerOptions) ->
 
     false ->
       tracer_is_enabled(Tail, TracerOptions)
+  end.
+
+internal_start(Config, Options) ->
+  application:start(crypto),
+  application:start(inets),
+
+  application:start(ssl),
+  application:start(timer),
+
+  ssl:start(),
+
+  ok = application:start(concurix_runtime),
+
+  case tracer_is_enabled(Options) of
+    true  ->
+      RunInfo = get_run_info(Config),
+      gen_server:call(?MODULE, { start_tracer, RunInfo, Options, Config });
+    false ->
+      {error, {failed, bad_options}}
   end.
 
 %% Make an http call back to concurix for a run id.
