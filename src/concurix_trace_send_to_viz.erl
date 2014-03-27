@@ -26,7 +26,7 @@ start_link(State) ->
   gen_server:start_link(?MODULE, [State], []).
 
 init([State]) ->
-  timer:send_after(State#tcstate.timerIntervalViz, send_to_viz),
+  timer:send_after(State#tcstate.timer_interval_viz, send_to_viz),
 
   {ok, State}.
  
@@ -36,12 +36,12 @@ handle_call(_Call, _From, State) ->
 handle_cast(_Msg, State) ->
   {noreply, State}.
  
-handle_info(send_to_viz, #tcstate{apiKey = APIKey,
-                                  sendUpdates = SendUpdates,
-                                  runInfo = RunInfo} = State) ->
+handle_info(send_to_viz, #tcstate{api_key = APIKey,
+                                  send_updates = SendUpdates,
+                                  run_info = RunInfo} = State) ->
     if 
 	(SendUpdates == true) ->
-	    timer:send_after(State#tcstate.timerIntervalViz, send_to_viz);
+	    timer:send_after(State#tcstate.timer_interval_viz, send_to_viz);
 	true -> ok
     end,
 
@@ -54,7 +54,7 @@ handle_info(send_to_viz, #tcstate{apiKey = APIKey,
     {noreply, State};
 
 handle_info(stop_updating,                  State) ->
-  {noreply, State#tcstate{sendUpdates = false}};
+  {noreply, State#tcstate{send_updates = false}};
 
 handle_info(Msg,                            State) ->
   io:format("~p:handle_info/2 Unexpected message ~p~n", [?MODULE, Msg]),

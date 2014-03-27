@@ -2,22 +2,22 @@
 
 -record(tcstate,
         {
-          runInfo,
+          run_info,
 
-          processTable,
-          linkTable,
-          sysProfTable,
-          procLinkTable,
+          process_table,
+          link_table,
+          sys_prof_table,
+          proc_link_table,
 
-          lastNodes,
+          last_nodes,
 
-          traceSupervisor,
+          trace_supervisor,
 
-          collectTraceData,
-          sendUpdates,
-          traceMf,
-          apiKey,
-          displayPid,
-          timerIntervalViz
+          collect_trace_data,
+          send_updates,
+          trace_mf,
+          api_key,
+          display_pid,
+          timer_interval_viz
         }).
 

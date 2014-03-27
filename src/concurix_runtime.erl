@@ -90,29 +90,29 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
     concurix_lib:config_option(Config, master, timer_interval_viz, 
                                ?DEFAULT_TIMER_INTERVAL_VIZ),
 
-  State     = #tcstate{runInfo          = RunInfo,
+  State     = #tcstate{run_info             = RunInfo,
                        %% Tables to communicate between data collectors 
                        %% and data transmitters
-                       processTable     = setup_ets_table(cx_procinfo),
-                       linkTable        = setup_ets_table(cx_linkstats),
-                       sysProfTable     = setup_ets_table(cx_sysprof),
-                       procLinkTable    = setup_ets_table(cx_proclink),
+                       process_table        = setup_ets_table(cx_procinfo),
+                       link_table           = setup_ets_table(cx_linkstats),
+                       sys_prof_table       = setup_ets_table(cx_sysprof),
+                       proc_link_table      = setup_ets_table(cx_proclink),
 
                        %% Tables to cache information from last snapshot
-                       lastNodes        = ets:new(cx_lastnodes, [public, {keypos, 2}]),
+                       last_nodes           = ets:new(cx_lastnodes, [public, {keypos, 2}]),
 
-                       traceSupervisor  = undefined,
+                       trace_supervisor     = undefined,
 
-                       collectTraceData = undefined,
-                       sendUpdates      = undefined,
-                       traceMf          = TraceMF,
-                       apiKey           = APIKey,
-                       displayPid       = DisplayPid,
-                       timerIntervalViz = TimerIntervalViz},
+                       collect_trace_data   = undefined,
+                       send_updates         = undefined,
+                       trace_mf             = TraceMF,
+                       api_key              = APIKey,
+                       display_pid          = DisplayPid,
+                       timer_interval_viz   = TimerIntervalViz},
 
   fill_initial_tables(State),
   {ok, Sup} = concurix_trace_supervisor:start_link(State, Options),
-  {reply, ok, State#tcstate{traceSupervisor = Sup}};
+  {reply, ok, State#tcstate{trace_supervisor = Sup}};
 
 handle_call({start_tracer, _Config, _Options, _Config}, _From, State) ->
   io:format("~p:handle_call/3   start_tracer but tracer is already running~n", [?MODULE]),
@@ -123,7 +123,7 @@ handle_call(stop_tracer, _From, undefined) ->
   {reply, ok, undefined};
 
 handle_call(stop_tracer, _From, State) ->
-  concurix_trace_supervisor:stop_tracing(State#tcstate.traceSupervisor),
+  concurix_trace_supervisor:stop_tracing(State#tcstate.trace_supervisor),
   {reply, ok, undefined}.
 
 
@@ -204,10 +204,10 @@ handle_info(_Msg, State) ->
   {noreply, State}.
 
 terminate(_Reason, State) ->
-  ets:delete(State#tcstate.processTable),
-  ets:delete(State#tcstate.linkTable),
-  ets:delete(State#tcstate.sysProfTable),
-  ets:delete(State#tcstate.procLinkTable),
+  ets:delete(State#tcstate.process_table),
+  ets:delete(State#tcstate.link_table),
+  ets:delete(State#tcstate.sys_prof_table),
+  ets:delete(State#tcstate.proc_link_table),
   ok.
  
 code_change(_oldVsn, State, _Extra) ->
@@ -219,8 +219,8 @@ code_change(_oldVsn, State, _Extra) ->
 
 fill_initial_tables(State) ->
   Processes = processes(),
-  fill_initial_proctable(State#tcstate.processTable, Processes),
-  fill_initial_proclinktable(State#tcstate.procLinkTable, Processes).
+  fill_initial_proctable(State#tcstate.process_table, Processes),
+  fill_initial_proclinktable(State#tcstate.proc_link_table, Processes).
   
 fill_initial_proctable(Table, Processes) ->
   ProcList = concurix_lib:update_process_info(Processes, []),

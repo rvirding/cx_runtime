@@ -31,8 +31,8 @@ start_link(State, Options) ->
 init([State, Options]) ->
   Terminate  = 2 * 1000,
 
-  StateTrace = State#tcstate{collectTraceData = enable_trace(Options)},
-  StateViz   = State#tcstate{sendUpdates      = enable_viz  (Options)},
+  StateTrace = State#tcstate{collect_trace_data = enable_trace(Options)},
+  StateViz   = State#tcstate{send_updates       = enable_viz  (Options)},
 
   Children   = [
                  {proc, {concurix_trace_by_process,   start_link, [StateTrace]}, transient, Terminate, worker, [concurix_trace_by_process]},

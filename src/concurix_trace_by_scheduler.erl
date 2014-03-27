@@ -28,7 +28,7 @@ start_link(State) ->
   gen_server:start_link(?MODULE, [State], []).
 
 init([State]) ->
-  SysProfTable = State#tcstate.sysProfTable,
+  SysProfTable = State#tcstate.sys_prof_table,
   SysProfPid   = spawn_link(?MODULE, handle_system_profile, [SysProfTable]),
 
   try erlang:system_profile(SysProfPid, [concurix])

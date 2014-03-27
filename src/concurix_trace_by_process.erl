@@ -72,31 +72,31 @@ handle_info({trace, Creator, spawn, Pid, Data}, State) ->
   Behaviour = concurix_lib:mod_to_behaviour(Mod),
   Key        = {Pid, {Mod, Fun, Arity}, Service, 1, Behaviour},
 
-  ets:insert(State#tcstate.processTable, Key),
+  ets:insert(State#tcstate.process_table, Key),
 
   %% also include a link from the creator process to the created.
   update_proc_table(Creator, State),
 
   %% TODO--should probably remove this once we put in supervisor hierarchy support
-  ets:insert(State#tcstate.linkTable, {{Creator, Pid}, 1, 0, now_microseconds()}),
+  ets:insert(State#tcstate.link_table, {{Creator, Pid}, 1, 0, now_microseconds()}),
   {noreply, State};
 
 handle_info({trace, Pid, exit, _Reason}, State) ->
-  ets:safe_fixtable(State#tcstate.processTable,   true),
-  ets:safe_fixtable(State#tcstate.linkTable,      true),
-  ets:safe_fixtable(State#tcstate.procLinkTable,  true),
+  ets:safe_fixtable(State#tcstate.process_table,    true),
+  ets:safe_fixtable(State#tcstate.link_table,       true),
+  ets:safe_fixtable(State#tcstate.proc_link_table,  true),
 
-  ets:select_delete(State#tcstate.linkTable,       [ { {{'_', Pid}, '_', '_', '_'},    [], [true] },
+  ets:select_delete(State#tcstate.link_table,       [ { {{'_', Pid}, '_', '_', '_'},    [], [true] },
                                                      { {{Pid, '_'}, '_', '_', '_'},    [], [true] } ]),
 
-  ets:select_delete(State#tcstate.processTable,    [ { {Pid, '_', '_', '_', '_'}, [], [true] } ]),
+  ets:select_delete(State#tcstate.process_table,    [ { {Pid, '_', '_', '_', '_'}, [], [true] } ]),
 
-  ets:select_delete(State#tcstate.procLinkTable,   [ { {'_', Pid},                [], [true] },
+  ets:select_delete(State#tcstate.proc_link_table,   [ { {'_', Pid},                [], [true] },
                                                      { {Pid, '_'},                [], [true] } ]),
 
-  ets:safe_fixtable(State#tcstate.linkTable,     false),
-  ets:safe_fixtable(State#tcstate.processTable,  false),
-  ets:safe_fixtable(State#tcstate.procLinkTable, false),
+  ets:safe_fixtable(State#tcstate.link_table,     false),
+  ets:safe_fixtable(State#tcstate.process_table,  false),
+  ets:safe_fixtable(State#tcstate.proc_link_table, false),
 
   {noreply, State};
 
@@ -123,12 +123,12 @@ handle_info({trace, Sender, send, Data, Recipient}, State) ->
 
   Size = erts_debug:flat_size(Data),
 
-  case ets:lookup(State#tcstate.linkTable, {Sender, Recipient}) of
+  case ets:lookup(State#tcstate.link_table, {Sender, Recipient}) of
     [] ->
-      ets:insert(State#tcstate.linkTable, {{Sender, Recipient}, 1, Size, now_microseconds()});
+      ets:insert(State#tcstate.link_table, {{Sender, Recipient}, 1, Size, now_microseconds()});
 
     _ ->
-      ets:update_counter(State#tcstate.linkTable, {Sender, Recipient}, [{2, 1}, {3, Size}])
+      ets:update_counter(State#tcstate.link_table, {Sender, Recipient}, [{2, 1}, {3, Size}])
   end,
 
   {noreply, State};
@@ -185,39 +185,39 @@ decode_anon_fun(Fun) ->
   {Mod, Str, 0}.
  
 update_proc_table(Pid, State) ->
-  case ets:lookup(State#tcstate.processTable, Pid) of
+  case ets:lookup(State#tcstate.process_table, Pid) of
     [] ->
       [{Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour}] = concurix_lib:update_process_info(Pid),
-      ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
+      ets:insert(State#tcstate.process_table, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
 
     _ ->
       ok
   end.
 
 update_proc_scheduler(Pid, Scheduler, State) ->
-  case ets:lookup(State#tcstate.processTable, Pid) of 
+  case ets:lookup(State#tcstate.process_table, Pid) of 
     [] ->
       %% we don't have it yet, wait until we get the create message
       ok;
 
     [{Pid, {Mod, Fun, Arity}, Service, _OldScheduler, Behaviour}] ->
-      ets:insert(State#tcstate.processTable, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
+      ets:insert(State#tcstate.process_table, {Pid, {Mod, Fun, Arity}, Service, Scheduler, Behaviour});
 
     X ->
       io:format("yikes, corrupt proc table ~p ~n", [X])
   end.
 
 insert_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
-  ets:insert(State#tcstate.procLinkTable, {Pid1, Pid2});
+  ets:insert(State#tcstate.proc_link_table, {Pid1, Pid2});
 insert_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
-  ets:insert(State#tcstate.procLinkTable, {Pid2, Pid1});
+  ets:insert(State#tcstate.proc_link_table, {Pid2, Pid1});
 insert_proc_link(_State, _Pid1, _Pid2) ->
   ok.
 
 delete_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
-  ets:delete_object(State#tcstate.procLinkTable, {Pid1, Pid2});
+  ets:delete_object(State#tcstate.proc_link_table, {Pid1, Pid2});
 delete_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
-  ets:delete_object(State#tcstate.procLinkTable, {Pid2, Pid1});
+  ets:delete_object(State#tcstate.proc_link_table, {Pid2, Pid1});
 delete_proc_link(_State, _Pid1, _Pid2) ->
   ok.
 

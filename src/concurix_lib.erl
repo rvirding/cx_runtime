@@ -163,27 +163,27 @@ update_process_info([Pid | T], Acc) ->
 
   update_process_info(T, NewAcc).
 
-get_current_json(#tcstate{traceMf = TraceMF} = State) ->
+get_current_json(#tcstate{trace_mf = TraceMF} = State) ->
   {Module, Function} = TraceMF,
   Module:Function(State).
 
 get_default_json(State) ->
-  ets:safe_fixtable(State#tcstate.processTable,  true),
-  ets:safe_fixtable(State#tcstate.linkTable,     true),
-  ets:safe_fixtable(State#tcstate.sysProfTable,  true),
-  ets:safe_fixtable(State#tcstate.procLinkTable, true),
+  ets:safe_fixtable(State#tcstate.process_table,  true),
+  ets:safe_fixtable(State#tcstate.link_table,     true),
+  ets:safe_fixtable(State#tcstate.sys_prof_table,  true),
+  ets:safe_fixtable(State#tcstate.proc_link_table, true),
 
-  RawProcs       = ets:tab2list(State#tcstate.processTable),
-  RawLinks       = ets:tab2list(State#tcstate.linkTable),
-  RawSys         = ets:tab2list(State#tcstate.sysProfTable),
-  RawProcLink    = ets:tab2list(State#tcstate.procLinkTable),
+  RawProcs       = ets:tab2list(State#tcstate.process_table),
+  RawLinks       = ets:tab2list(State#tcstate.link_table),
+  RawSys         = ets:tab2list(State#tcstate.sys_prof_table),
+  RawProcLink    = ets:tab2list(State#tcstate.proc_link_table),
 
   {Procs, Links} = validate_tables(RawProcs, RawLinks, State),
 
-  ets:safe_fixtable(State#tcstate.sysProfTable,  false),
-  ets:safe_fixtable(State#tcstate.linkTable,     false),
-  ets:safe_fixtable(State#tcstate.processTable,  false),
-  ets:safe_fixtable(State#tcstate.procLinkTable, false),
+  ets:safe_fixtable(State#tcstate.sys_prof_table,  false),
+  ets:safe_fixtable(State#tcstate.link_table,     false),
+  ets:safe_fixtable(State#tcstate.process_table,  false),
+  ets:safe_fixtable(State#tcstate.proc_link_table, false),
 
   CallTotals = lists:foldl(fun ({{Source, _Target}, NumCalls, _WordsSent, _Start}, Acc) ->
                                    dict:update_counter(Source, NumCalls, Acc)
@@ -215,7 +215,7 @@ get_default_json(State) ->
                       {num_calls,       NumCalls(Pid)},
                       {duration,        1000}, % TODO fixme
                       {child_duration,  100} % TODO this isn't even in the spec but is required for the dashboard to work
-                     ] ++ delta_info(State#tcstate.lastNodes, Pid)
+                     ] ++ delta_info(State#tcstate.last_nodes, Pid)
                      ||
                       {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs ],
 
@@ -244,9 +244,7 @@ get_default_json(State) ->
                       {process_free,    Free}] ||
                       {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
 
-  Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.runInfo)),
-
-
+  Run_id = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.run_info)),
   case os:type() of
       {unix, linux} ->
         {ok, LoadAvg} = concurix_cpu_info:get_load_avg(),
@@ -275,29 +273,29 @@ get_default_json(State) ->
   cx_jsx_eep0018:term_to_json(Send, []).
 
 get_json_for_proxy(State) ->
-  ets:safe_fixtable(State#tcstate.processTable,  true),
-  ets:safe_fixtable(State#tcstate.linkTable,     true),
-  ets:safe_fixtable(State#tcstate.sysProfTable,  true),
-  ets:safe_fixtable(State#tcstate.procLinkTable, true),
+  ets:safe_fixtable(State#tcstate.process_table,  true),
+  ets:safe_fixtable(State#tcstate.link_table,     true),
+  ets:safe_fixtable(State#tcstate.sys_prof_table,  true),
+  ets:safe_fixtable(State#tcstate.proc_link_table, true),
 
-  RawProcs       = ets:tab2list(State#tcstate.processTable),
-  RawLinks       = ets:tab2list(State#tcstate.linkTable),
-  RawSys         = ets:tab2list(State#tcstate.sysProfTable),
-  RawProcLink    = ets:tab2list(State#tcstate.procLinkTable),
+  RawProcs       = ets:tab2list(State#tcstate.process_table),
+  RawLinks       = ets:tab2list(State#tcstate.link_table),
+  RawSys         = ets:tab2list(State#tcstate.sys_prof_table),
+  RawProcLink    = ets:tab2list(State#tcstate.proc_link_table),
 
   {Procs, Links} = validate_tables(RawProcs, RawLinks, State),
 
-  ets:safe_fixtable(State#tcstate.sysProfTable,  false),
-  ets:safe_fixtable(State#tcstate.linkTable,     false),
-  ets:safe_fixtable(State#tcstate.processTable,  false),
-  ets:safe_fixtable(State#tcstate.procLinkTable, false),
+  ets:safe_fixtable(State#tcstate.sys_prof_table,  false),
+  ets:safe_fixtable(State#tcstate.link_table,     false),
+  ets:safe_fixtable(State#tcstate.process_table,  false),
+  ets:safe_fixtable(State#tcstate.proc_link_table, false),
 
   CallTotals = lists:foldl(fun ({{Source, _Target}, NumCalls, _WordsSent, _Start}, Acc) ->
                                    dict:update_counter(Source, NumCalls, Acc)
                            end,
                            dict:new(),
                            Links),
-  DisplayPid = State#tcstate.displayPid,
+  DisplayPid = State#tcstate.display_pid,
   NumCalls = fun (Pid) ->
                      case dict:find(Pid, CallTotals) of
                          {ok, Value} -> Value;
@@ -336,7 +334,7 @@ get_json_for_proxy(State) ->
                       {num_calls,       NumCalls(Pid)},
                       {duration,        1000}, % TODO fixme
                       {child_duration,  100} % TODO this isn't even in the spec but is required for the dashboard to work
-                     ] ++ delta_info(State#tcstate.lastNodes, Pid)
+                     ] ++ delta_info(State#tcstate.last_nodes, Pid)
                      || {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs],
 
   TempLinks      = [ [{source,          pid_to_name(A)},
@@ -364,7 +362,7 @@ get_json_for_proxy(State) ->
                       {Id, {[{concurix, Create, QCount, QTime, Send, 
                               GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
 
-%  Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.runInfo)),
+%  Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.run_info)),
 
 
   case os:type() of
@@ -381,7 +379,7 @@ get_json_for_proxy(State) ->
   Send           =   [{type,              <<"erlang">>},
                       {version,           <<"0.1.4">>},
 
-                      {tracing_interval,   State#tcstate.timerIntervalViz},
+                      {tracing_interval,   State#tcstate.timer_interval_viz},
                       {hostname,           get_hostname()},
                       {pid,                11088},
 
