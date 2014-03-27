@@ -16,6 +16,7 @@
           collectTraceData,
           sendUpdates,
           traceMf,
-          apiKey
+          apiKey,
+          displayPid
         }).
 

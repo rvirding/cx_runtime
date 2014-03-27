@@ -270,7 +270,7 @@ get_json_for_proxy(State) ->
                            end,
                            dict:new(),
                            Links),
-
+  DisplayPid = State#tcstate.displayPid,
   NumCalls = fun (Pid) ->
                      case dict:find(Pid, CallTotals) of
                          {ok, Value} -> Value;
@@ -283,7 +283,7 @@ get_json_for_proxy(State) ->
                       {pid,             ospid_to_b()},
                       {name,            pid_to_name(Pid)},
                       {module,[
-                        {top, get_module_name_b(M, Pid)}, 
+                        {top, get_module_name_b(DisplayPid, M, Pid)}, 
                         {requireId, term_to_b(M)},
                         {id, mod_to_id(M)}
                       ]},
@@ -574,6 +574,16 @@ validate_tables(Procs, Links, _State) ->
   NewProcs    = update_process_info(Updateprocs, []),
   {Procs ++ NewProcs, Links}.
 
-get_module_name_b(M, _Pid) ->
-  term_to_b(M).
+get_module_name_b(false = _DisplayPid, M, _Pid) ->
+  term_to_b(M);
+get_module_name_b(true = _DisplayPid, M, Pid) ->
+  ModBin = term_to_b(M),
+  ProcNameBin = term_to_b(try_get_regname(Pid)),
+  <<ModBin/binary, <<"/">>/binary, ProcNameBin/binary>>.
+
+try_get_regname(Pid) ->
+  case (catch process_info(Pid, registered_name)) of
+    {registered_name, Name} -> Name;
+    _ -> Pid
+  end.
 
