@@ -24,7 +24,9 @@
          get_default_json/1,
          merge_run_info/2,
          careful_process_info/2,
-         get_json_for_proxy/1]).
+         get_json_for_proxy/1,
+         config_option/3,
+         config_option/4]).
 
 -record(last_node, {pid, total_heap_size}).
 
@@ -33,6 +35,31 @@
 %%%=============================================================================
 %%% External functions
 %%%=============================================================================
+
+config_option(Config, Slot, Key, Default) ->
+  case config_option(Config, Slot, Key) of
+    undefined -> Default;
+    {ok, Value} -> Value
+  end.
+
+config_option([], _Slot, _Key) ->
+  undefined;
+
+config_option([{Slot, SlotConfig} | _Tail], Slot, Key) ->
+  config_option(SlotConfig, Key);
+
+config_option([_Head | Tail], Slot, Key) ->
+  config_option(Tail, Slot, Key).
+
+
+config_option([], _Key) ->
+  undefined;
+
+config_option([{Key, Value} | _Tail], Key) ->
+  { ok, Value};
+
+config_option([_Head | Tail], Key) ->
+  config_option(Tail, Key).
 
 %%
 %% process_info is defined to throw an exception if Pid is not local
@@ -354,7 +381,7 @@ get_json_for_proxy(State) ->
   Send           =   [{type,              <<"erlang">>},
                       {version,           <<"0.1.4">>},
 
-                      {tracing_interval,   ?TIMER_INTERVAL_VIZ},
+                      {tracing_interval,   State#tcstate.timerIntervalViz},
                       {hostname,           get_hostname()},
                       {pid,                11088},
 

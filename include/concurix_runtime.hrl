@@ -1,4 +1,4 @@
--define(TIMER_INTERVAL_VIZ, 2 * 1000).    %% Update VIZ every 2 seconds
+-define(DEFAULT_TIMER_INTERVAL_VIZ, 2 * 1000).   %% Update VIZ every 2 seconds
 
 -record(tcstate,
         {
@@ -17,6 +17,7 @@
           sendUpdates,
           traceMf,
           apiKey,
-          displayPid
+          displayPid,
+          timerIntervalViz
         }).
 

@@ -26,7 +26,7 @@ start_link(State) ->
   gen_server:start_link(?MODULE, [State], []).
 
 init([State]) ->
-  timer:send_after(?TIMER_INTERVAL_VIZ, send_to_viz),
+  timer:send_after(State#tcstate.timerIntervalViz, send_to_viz),
 
   {ok, State}.
  
@@ -41,7 +41,7 @@ handle_info(send_to_viz, #tcstate{apiKey = APIKey,
                                   runInfo = RunInfo} = State) ->
     if 
 	(SendUpdates == true) ->
-	    timer:send_after(?TIMER_INTERVAL_VIZ, send_to_viz);
+	    timer:send_after(State#tcstate.timerIntervalViz, send_to_viz);
 	true -> ok
     end,
 

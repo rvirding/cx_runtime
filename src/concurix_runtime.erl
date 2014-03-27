@@ -83,12 +83,16 @@ init([]) ->
 
 handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
   io:format("starting Concurix tracing ~n"),
-  {ok, APIKey} = config_option(Config, master, api_key),
-  TraceMF = config_option(Config, master, trace_mf, ?DEFAULT_TRACE_MF),
-  DisplayPid = config_option(Config, master, display_pid, false),
-  State     = #tcstate{runInfo          = RunInfo,
+  {ok, APIKey} = concurix_lib:config_option(Config, master, api_key),
+  TraceMF = concurix_lib:config_option(Config, master, trace_mf, ?DEFAULT_TRACE_MF),
+  DisplayPid = concurix_lib:config_option(Config, master, display_pid, false),
+  TimerIntervalViz = 
+    concurix_lib:config_option(Config, master, timer_interval_viz, 
+                               ?DEFAULT_TIMER_INTERVAL_VIZ),
 
-                       %% Tables to communicate between data collectors and data transmitters
+  State     = #tcstate{runInfo          = RunInfo,
+                       %% Tables to communicate between data collectors 
+                       %% and data transmitters
                        processTable     = setup_ets_table(cx_procinfo),
                        linkTable        = setup_ets_table(cx_linkstats),
                        sysProfTable     = setup_ets_table(cx_sysprof),
@@ -103,8 +107,8 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
                        sendUpdates      = undefined,
                        traceMf          = TraceMF,
                        apiKey           = APIKey,
-                       displayPid      = DisplayPid
-                      },
+                       displayPid       = DisplayPid,
+                       timerIntervalViz = TimerIntervalViz},
 
   fill_initial_tables(State),
   {ok, Sup} = concurix_trace_supervisor:start_link(State, Options),
@@ -153,14 +157,14 @@ tracer_is_enabled([Head | Tail], TracerOptions) ->
 %%                  {signature,        "<AWS generated string>"}]}]
 
 get_run_info(Config) ->
-  { ok, Server } = config_option(Config, master, concurix_server),
-  { ok, APIkey } = config_option(Config, master, api_key),
+  { ok, Server } = concurix_lib:config_option(Config, master, concurix_server),
+  { ok, APIkey } = concurix_lib:config_option(Config, master, api_key),
 
   Url            = "http://" ++ Server ++ "/bench/new_offline_run/" ++ APIkey,
   Reply          = httpc:request(Url),
 
   LocalRunInfo = 
-    case config_option(Config, master, run_info) of
+    case concurix_lib:config_option(Config, master, run_info) of
         undefined -> [];
         {ok, Value} -> Value
     end,
@@ -172,31 +176,6 @@ get_run_info(Config) ->
     _ ->
       keys_to_b(LocalRunInfo)
   end.
-
-config_option(Config, Slot, Key, Default) ->
-  case config_option(Config, Slot, Key) of
-    undefined -> Default;
-    {ok, Value} -> Value
-  end.
-
-config_option([], _Slot, _Key) ->
-  undefined;
-
-config_option([{Slot, SlotConfig} | _Tail], Slot, Key) ->
-  config_option(SlotConfig, Key);
-
-config_option([_Head | Tail], Slot, Key) ->
-  config_option(Tail, Slot, Key).
-
-
-config_option([], _Key) ->
-  undefined;
-
-config_option([{Key, Value} | _Tail], Key) ->
-  { ok, Value};
-
-config_option([_Head | Tail], Key) ->
-  config_option(Tail, Key).
 
 eval_string(Incoming_String) ->
   String = case lists:last(Incoming_String) of
