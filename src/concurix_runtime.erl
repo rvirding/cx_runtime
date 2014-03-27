@@ -63,7 +63,6 @@ internal_start(Config, Options) ->
     true  ->
       RunInfo = get_run_info(Config),
       gen_server:call(?MODULE, { start_tracer, RunInfo, Options, Config });
-
     false ->
       { failed, bad_options }
   end.
@@ -86,7 +85,6 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
   io:format("starting Concurix tracing ~n"),
   {ok, APIKey} = config_option(Config, master, api_key),
   TraceMF = config_option(Config, master, trace_mf, ?DEFAULT_TRACE_MF),
-  FilterDirs = config_option(Config, master, filter_directories, []),
   State     = #tcstate{runInfo          = RunInfo,
 
                        %% Tables to communicate between data collectors and data transmitters
@@ -103,8 +101,7 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
                        collectTraceData = undefined,
                        sendUpdates      = undefined,
                        traceMf          = TraceMF,
-                       apiKey           = APIKey,
-                       filterDirs       = FilterDirs
+                       apiKey           = APIKey
                       },
 
   fill_initial_tables(State),
@@ -122,8 +119,6 @@ handle_call(stop_tracer, _From, undefined) ->
 handle_call(stop_tracer, _From, State) ->
   concurix_trace_supervisor:stop_tracing(State#tcstate.traceSupervisor),
   {reply, ok, undefined}.
-
-
 
 
 %%
@@ -162,18 +157,18 @@ get_run_info(Config) ->
   Url            = "http://" ++ Server ++ "/bench/new_offline_run/" ++ APIkey,
   Reply          = httpc:request(Url),
 
+  LocalRunInfo = 
+    case config_option(Config, master, run_info) of
+        undefined -> [];
+        {ok, Value} -> Value
+    end,
+
   case Reply of
     {_, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} ->
       RemoteRunInfo = cx_jsx:json_to_term(list_to_binary(Body)),
-      LocalRunInfo = 
-        case config_option(Config, master, run_info) of
-            undefined -> [];
-            {ok, Value} -> Value
-        end,
       concurix_lib:merge_run_info(RemoteRunInfo, LocalRunInfo);
     _ ->
-      {Mega, Secs, Micro} = now(), 
-      lists:flatten(io_lib:format("local-~p-~p-~p", [Mega, Secs, Micro]))
+      keys_to_b(LocalRunInfo)
   end.
 
 config_option(Config, Slot, Key, Default) ->
@@ -268,3 +263,6 @@ get_proc_links(Proc) ->
     _ ->
       []
   end.
+
+keys_to_b(L) ->
+  [{list_to_binary(atom_to_list(K)), V} || {K, V} <- L].

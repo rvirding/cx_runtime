@@ -16,7 +16,6 @@
           collectTraceData,
           sendUpdates,
           traceMf,
-          apiKey,
-          filterDirs
+          apiKey
         }).
 

@@ -115,7 +115,7 @@ update_process_info([Pid | T], Acc) ->
             {current_function, {Mod, Fun, Arity}} -> 
               ok;
 
-            Other -> 
+            _ -> 
               %%("got unknown current function results of ~p ~n", [X]),
               {Mod, Fun, Arity} = {erlang, apply, 0}
           end;
@@ -124,7 +124,7 @@ update_process_info([Pid | T], Acc) ->
           ok
       end;
 
-    OtherResult ->
+    _ ->
       Mod   = unknown,
       Fun   = Pid,
       Arity = 0
@@ -247,7 +247,7 @@ get_default_json(State) ->
 
   cx_jsx_eep0018:term_to_json(Send, []).
 
-get_json_for_proxy(#tcstate{filterDirs = FilterDirs} = State) ->
+get_json_for_proxy(State) ->
   ets:safe_fixtable(State#tcstate.processTable,  true),
   ets:safe_fixtable(State#tcstate.linkTable,     true),
   ets:safe_fixtable(State#tcstate.sysProfTable,  true),
@@ -283,11 +283,7 @@ get_json_for_proxy(#tcstate{filterDirs = FilterDirs} = State) ->
                       {pid,             ospid_to_b()},
                       {name,            pid_to_name(Pid)},
                       {module,[
-                        {top, begin ModuleBin = term_to_b(M),
-                                    PidBin = term_to_b(Pid),
-                                    <<ModuleBin/binary, <<"_">>/binary, 
-                                      PidBin/binary>>
-                              end},
+                        {top, get_module_name_b(M, Pid)}, 
                         {requireId, term_to_b(M)},
                         {id, mod_to_id(M)}
                       ]},
@@ -314,9 +310,7 @@ get_json_for_proxy(#tcstate{filterDirs = FilterDirs} = State) ->
                       {duration,        1000}, % TODO fixme
                       {child_duration,  100} % TODO this isn't even in the spec but is required for the dashboard to work
                      ] ++ delta_info(State#tcstate.lastNodes, Pid)
-                     ||
-                      {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs],
-%                      filter_module_by_dir(M, FilterDirs)],
+                     || {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs],
 
   TempLinks      = [ [{source,          pid_to_name(A)},
                       {target,          pid_to_name(B)},
@@ -325,16 +319,11 @@ get_json_for_proxy(#tcstate{filterDirs = FilterDirs} = State) ->
                       {start,           Start},
                       {num_calls,       C},
                       {words_sent,      D}] 
-                        || {{A, B}, C, D, Start} <- Links,
-                           filter_pid_by_dir(A, Procs, FilterDirs),
-                           filter_pid_by_dir(A, Procs, FilterDirs)],
+                        || {{A, B}, C, D, Start} <- Links],
 
   ProcLinks       = [ [{source,         pid_to_name(A)},
                        {target,         pid_to_name(B)}]
-                      || {A, B} <- RawProcLink,
-                         filter_pid_by_dir(A, Procs, FilterDirs),
-                         filter_pid_by_dir(A, Procs, FilterDirs)],
-
+                      || {A, B} <- RawProcLink],
   Schedulers     = [ [{scheduler,       Id},
                       {process_create,  Create},
                       {quanta_count,    QCount},
@@ -345,20 +334,21 @@ get_json_for_proxy(#tcstate{filterDirs = FilterDirs} = State) ->
                       {tail_call_count, Tail},
                       {return_count,    Return},
                       {process_free,    Free}] ||
-                      {Id, {[{concurix, Create, QCount, QTime, Send, GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
+                      {Id, {[{concurix, Create, QCount, QTime, Send, 
+                              GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
 
-  Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.runInfo)),
+%  Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.runInfo)),
 
 
   case os:type() of
       {unix, linux} ->
-        {ok, LoadAvg} = concurix_cpu_info:get_load_avg(),
-        {ok, CpuTimes} = concurix_cpu_info:get_cpu_times(),
-        {ok, CpuInfos} = concurix_cpu_info:get_cpu_info(),
-        Cpus = [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos];
+        {ok, _LoadAvg} = concurix_cpu_info:get_load_avg(),
+        {ok, _CpuTimes} = concurix_cpu_info:get_cpu_times(),
+        {ok, _CpuInfos} = concurix_cpu_info:get_cpu_info();
+%        Cpus = [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos];
       _ ->
-        LoadAvg = [],
-        Cpus = []
+        _LoadAvg = [],
+        _Cpus = []
   end,
 
   Send           =   [{type,              <<"erlang">>},
@@ -560,15 +550,6 @@ now_seconds() ->
     {Mega, Secs, _}= now(),
     Mega*1000000 + Secs.
 
--spec get_pid_app_name(Pid :: pid()) -> binary().
-get_pid_app_name(Pid) ->
-  case (catch application:get_application(Pid)) of
-    {ok, Application} ->
-      list_to_binary(atom_to_list(Application));
-    _ ->
-      <<"undefined">>
-  end.
-
 -spec get_hostname() -> binary().
 get_hostname() ->
   {ok, HostName} = inet:gethostname(),
@@ -593,29 +574,6 @@ validate_tables(Procs, Links, _State) ->
   NewProcs    = update_process_info(Updateprocs, []),
   {Procs ++ NewProcs, Links}.
 
-filter_pid_by_dir(Pid, Procs, FilterDirs) ->
-  case lists:keyfind(Pid, 1, Procs) of
-    false  ->
-      false;
-    {Pid, {M, _F, _A}, _, _, _} ->
-      filter_module_by_dir(M, FilterDirs)
-  end.
-
-filter_module_by_dir(Module, FilterDirs) ->
-  case (catch code:which(Module)) of
-    Location when is_list(Location) ->
-      filter_module(FilterDirs, Location);
-    _ ->
-      false
-  end.
-
-filter_module([], _Path) ->
-  true;
-filter_module([FilterDir | T], Path) ->
-  case string:str(Path, FilterDir) of
-    1 ->
-      false;
-    _ ->
-      filter_module(T, Path)
-  end.
+get_module_name_b(M, _Pid) ->
+  term_to_b(M).
 
