@@ -20,7 +20,7 @@
          mod_to_service/1,
          local_translate_initial_call/1,
          get_current_json/1,
-         mod_to_behaviour/1,
+         mod_to_behaviours/1,
          get_default_json/1,
          merge_run_info/2,
          careful_process_info/2,
@@ -36,25 +36,23 @@
 %%% External functions
 %%%=============================================================================
 
+-spec config_option(proplists:proplist(), atom(), atom(), term()) -> term().
 config_option(Config, Slot, Key, Default) ->
   case config_option(Config, Slot, Key) of
     undefined -> Default;
     {ok, Value} -> Value
   end.
 
+-spec config_option(proplists:proplist(), atom(), atom()) -> term().
 config_option([], _Slot, _Key) ->
   undefined;
-
 config_option([{Slot, SlotConfig} | _Tail], Slot, Key) ->
   config_option(SlotConfig, Key);
-
 config_option([_Head | Tail], Slot, Key) ->
   config_option(Tail, Slot, Key).
 
-
 config_option([], _Key) ->
   undefined;
-
 config_option([{Key, Value} | _Tail], Key) ->
   { ok, Value};
 
@@ -67,24 +65,31 @@ config_option([_Head | Tail], Key) ->
 %% This version verifies that the PID is for the current node
 %% The callers to this function already have business logic for 'undefined'
 %%
+-spec careful_process_info(Pid, Item) -> Result when
+  Pid :: pid(),
+  Item :: atom(),
+  Result :: term().
 careful_process_info(Pid, Item) when node(Pid) =:= node() ->
   process_info(Pid, Item);
 
 careful_process_info(_Pid, _Item) ->
   undefined.
 
+-spec local_translate_initial_call(Pid) -> Result when
+  Pid :: pid(),
+  Result :: {Module :: atom(), Function :: atom(), Arity :: integer()}.
 local_translate_initial_call(Pid) when is_pid(Pid) ->
   proc_lib:translate_initial_call(Pid);
-
 local_translate_initial_call(Pid) when is_atom(Pid) ->
   proc_lib:translate_initial_call(whereis(Pid));
-
 local_translate_initial_call({Pid, _X}) ->
   local_translate_initial_call(Pid).
 
+-spec mod_to_service(Mod) -> Result when
+  Mod :: atom() | string(),
+  Result :: string().
 mod_to_service(Mod) when is_list(Mod)->
   mod_to_service(list_to_atom(Mod));
-
 mod_to_service(Mod) ->
   case lists:keyfind(Mod, 1, code:all_loaded()) of
     false->
@@ -94,15 +99,18 @@ mod_to_service(Mod) ->
       path_to_service(Path)
   end.
 
-mod_to_behaviour(unknown) ->
+-spec mod_to_behaviours(Mod) -> Result when
+  Mod :: atom() | string(),
+  Result :: nonempty_list(binary()). 
+mod_to_behaviours(unknown) ->
   [<<"undefined">>];
-mod_to_behaviour(port) ->
+mod_to_behaviours(port) ->
   [<<"port">>];
-mod_to_behaviour(Mod) when is_port(Mod) ->
+mod_to_behaviours(Mod) when is_port(Mod) ->
   [<<"port">>];
-mod_to_behaviour(Mod) when is_list(Mod) ->
-  mod_to_behaviour(list_to_atom(Mod));
-mod_to_behaviour(Mod) ->
+mod_to_behaviours(Mod) when is_list(Mod) ->
+  mod_to_behaviours(list_to_atom(Mod));
+mod_to_behaviours(Mod) ->
   Behaviour = case Mod of
       supervisor ->
           %% Module was already translated to supervisor by proc_lib
@@ -123,12 +131,33 @@ mod_to_behaviour(Mod) ->
   end,
   [atom_to_binary(X, latin1) || X <- Behaviour].
 
+
+-spec update_process_info(Pid) -> Result when
+  Pid :: pid(),
+  Result :: [{Pid, {M, F, A}, Service, Calls, Behaviours}],
+  Pid :: pid(),
+  M :: atom(),
+  F :: atom(),
+  A :: atom(),
+  Service :: string(),
+  Calls :: integer(),
+  Behaviours :: nonempty_list(binary()).
 update_process_info(Pid) ->
   update_process_info([Pid], []).
 
+-spec update_process_info(Pids, Acc) -> Result when
+  Pids :: list(pid()),
+  Acc :: list(),
+  Result :: list({Pid, {M, F, A}, Service, Calls, Behaviours}),
+  Pid :: pid(),
+  M :: atom(),
+  F :: atom(),
+  A :: atom(),
+  Service :: string(),
+  Calls :: integer(),
+  Behaviours :: nonempty_list(binary()).
 update_process_info([],        Acc) ->
   Acc;
-
 update_process_info([Pid | T], Acc) ->
   case local_process_info(Pid, initial_call) of
     {initial_call, MFA} ->
@@ -158,15 +187,16 @@ update_process_info([Pid | T], Acc) ->
   end,
 
   Service = mod_to_service(Mod),
-  Behave  = mod_to_behaviour(Mod),
-  NewAcc  = Acc ++ [{Pid, {Mod, Fun, Arity}, Service, 1, Behave}],
+  Behaviours  = mod_to_behaviours(Mod),
 
-  update_process_info(T, NewAcc).
+  update_process_info(T, [{Pid, {Mod, Fun, Arity}, Service, 1, Behaviours} | Acc]).
 
+-spec get_current_json(State :: #tcstate{}) -> binary().
 get_current_json(#tcstate{trace_mf = TraceMF} = State) ->
   {Module, Function} = TraceMF,
   Module:Function(State).
 
+-spec get_default_json(State :: #tcstate{}) -> binary().
 get_default_json(State) ->
   ets:safe_fixtable(State#tcstate.process_table,  true),
   ets:safe_fixtable(State#tcstate.link_table,     true),
@@ -272,6 +302,7 @@ get_default_json(State) ->
 
   cx_jsx_eep0018:term_to_json(Send, []).
 
+-spec get_json_for_proxy(State :: #tcstate{}) -> binary().
 get_json_for_proxy(State) ->
   ets:safe_fixtable(State#tcstate.process_table,  true),
   ets:safe_fixtable(State#tcstate.link_table,     true),

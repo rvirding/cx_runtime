@@ -133,12 +133,26 @@ fixup(R, S, MP, MM, K, B, false) ->
         ; false -> {K, generate(R * B, S, MP * B, MM * B, B, true)}
     end.
 
-
+-spec generate(
+  RT :: integer(), 
+  S :: integer(), 
+  MP :: integer(), 
+  MM :: integer(), 
+  B :: integer(),
+  Round :: boolean()
+) -> nonempty_list(integer()).
 generate(RT, S, MP, MM, B, Round) ->
     D = RT div S,
     R = RT rem S,
-    TC1 = case Round of true -> (R =< MM); false -> (R < MM) end,
-    TC2 = case Round of true -> (R + MP >= S); false -> (R + MP > S) end,
+
+    %% let's make dialyzer happy.
+    TC1 =  R =< MM,
+%      case Round of 
+%        true -> (R =< MM); 
+%        false -> (R < MM) 
+%      end,
+    TC2 = (R + MP >= S),
+%   TC2 = case Round of true -> (R + MP >= S); false -> (R + MP > S) end,
     case TC1 of
         false -> case TC2 of
                 false -> [D | generate(R * B, S, MP * B, MM * B, B, Round)]

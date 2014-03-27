@@ -25,10 +25,16 @@
 
 -define(DEFAULT_TRACE_MF, {?MODULE, get_default_json}).
 
+
+%%==============================================================================
+%% External functions
+%%==============================================================================
+
 %%
 %% The no-argument start will look for concurix.config, downloading and 
 %% installing one if necessary
 %%
+-spec start() -> {ok, pid()} | {error, Reason :: term()}. 
 start() ->
   application:start(inets),
   Result = httpc:request("http://concurix.com/bench/get_config_download/benchcode-381"),
@@ -40,8 +46,11 @@ start() ->
       io:format("error, could not autoconfigure concurix_runtime ~p ~n", [Error]),
       {error, Error}
   end.
-      
-start(Filename, Options) ->
+
+-spec start(FileName, Options) -> {ok, pid()} | {error, Reason :: term()} when
+  FileName :: file:name_all(),
+  Options :: list().
+start(Filename, Options) -> 
   {ok, CWD}           = file:get_cwd(),
   Dirs                = code:get_path(),
 
@@ -64,9 +73,10 @@ internal_start(Config, Options) ->
       RunInfo = get_run_info(Config),
       gen_server:call(?MODULE, { start_tracer, RunInfo, Options, Config });
     false ->
-      { failed, bad_options }
+      {error, {failed, bad_options}}
   end.
 
+-spec stop() -> ok.
 stop() ->
   gen_server:call(?MODULE, stop_tracer),
   ok.
@@ -74,10 +84,14 @@ stop() ->
 %%
 %% gen_server support
 %%
-
+-spec start_link() -> {ok, pid()}.
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+
+%%==============================================================================
+%% gen_server callbacks
+%%==============================================================================
 init([]) ->
   {ok, undefined}.
 
@@ -126,8 +140,9 @@ handle_call(stop_tracer, _From, State) ->
   concurix_trace_supervisor:stop_tracing(State#tcstate.trace_supervisor),
   {reply, ok, undefined}.
 
-
-%%
+%%==============================================================================
+%% Internal funtions
+%%==============================================================================
 tracer_is_enabled(Options) ->
   tracer_is_enabled(Options, [ msg_trace, enable_sys_profile, enable_send_to_viz ]).
 

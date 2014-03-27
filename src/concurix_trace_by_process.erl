@@ -69,7 +69,7 @@ handle_info({trace, Creator, spawn, Pid, Data}, State) ->
   end,
 
   Service   = concurix_lib:mod_to_service(Mod),
-  Behaviour = concurix_lib:mod_to_behaviour(Mod),
+  Behaviour = concurix_lib:mod_to_behaviours(Mod),
   Key        = {Pid, {Mod, Fun, Arity}, Service, 1, Behaviour},
 
   ets:insert(State#tcstate.process_table, Key),
