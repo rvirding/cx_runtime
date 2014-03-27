@@ -400,17 +400,7 @@ get_json_for_proxy(State) ->
                         {id, mod_to_id(M)}
                       ]},
                       {fun_name,        term_to_b(F)},
-                      {line,            <<"0">>},
-                      {start,           <<"391216792868">>},
                       {next_level,      <<"NaN">>},
-                      {merge, [
-                        {'Function', <<"merge">>},
-                        {length, <<"1">>},
-                        {name, <<"merge">>},
-                        {arguments, <<"null">>},
-                        {caller, <<"null">>},
-                        {prototype, <<"null">>}
-                      ]},
                       {arity,           A},
                       local_process_info(Pid, reductions),
                       local_process_info(Pid, message_queue_len),
@@ -452,59 +442,43 @@ get_json_for_proxy(State) ->
 %  Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.run_info)),
 
 
-  case os:type() of
-      {unix, linux} ->
-        {ok, _LoadAvg} = concurix_cpu_info:get_load_avg(),
-        {ok, _CpuTimes} = concurix_cpu_info:get_cpu_times(),
-        {ok, _CpuInfos} = concurix_cpu_info:get_cpu_info();
-%        Cpus = [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos];
-      _ ->
-        _LoadAvg = [],
-        _Cpus = []
-  end,
+  {LoadAvg, Cpus} =
+    case os:type() of
+        {unix, linux} ->
+          {ok, LoadAverage} = concurix_cpu_info:get_load_avg(),
+          {ok, CpuTimes} = concurix_cpu_info:get_cpu_times(),
+          {ok, CpuInfos} = concurix_cpu_info:get_cpu_info(),
+          CpuInfos = [[{times, proplists:get_value(proplists:get_value(id, CpuInfo), CpuTimes)} | CpuInfo] || CpuInfo <- CpuInfos],
+          {LoadAverage, CpuInfos};
+        _ ->
+          {[], []}
+    end,
 
   Send           =   [{type,              <<"erlang">>},
-                      {version,           <<"0.1.4">>},
+                      {version,           get_app_version()},
 
                       {tracing_interval,   State#tcstate.timer_interval_viz},
                       {hostname,           get_hostname()},
-                      {pid,                11088},
 
-                      {load_avg, [39.3, 38.2, 40.8]},
+                      {load_avg, LoadAvg},
 
-                      {cpus, [
-
-                      ]},
+                      {cpus, Cpus},
 
                       {process_info, [
-                        {memory,  [
-                          {rss, 15839232}, 
-                          {heapTotal, 10324992}, 
-                          {heapUsed, 4810784}
-                        ]},
-
-                        {uptime, 2},
+                        {memory, erlang:memory()},
+                        {uptime, get_node_uptime()},
                         {active_requests, 0},
                         {active_handles, 2},
-                        {versions, [
-                          {http_parser, <<"1.0">>},
-                          {node, <<"0.10.25">>},
-                          {v8, <<"3.14.5.9">>},
-                          {ares, <<"1.9.0-DEV">>},
-                          {uv, <<"0.10.23">>},
-                          {zlib, <<"1.2.3">>},
-                          {modules, <<"11">>},
-                          {openssl, <<"1.0.1e">>}
-                        ]},
+                        {versions, get_app_versions()},
                         {environment, <<"default">>}
                       ]},
 
                       {system_info, [
-                        {freemem, 670539776},
-                        {totalmem, 8589934592},
-                        {arch, <<"x64">>},
-                        {platform, <<"darwin">>},
-                        {uptime, 917380.0}
+                        {freemem, sys_free_memory()},
+                        {totalmem, sys_total_memory()},
+                        {arch, os_type()},
+                        {platform, os_version()},
+                        {uptime, get_node_uptime()}
                       ]},
 
                       {timestamp,         now_seconds()},
@@ -699,3 +673,30 @@ try_get_regname(Pid) ->
     {registered_name, Name} -> Name;
     _ -> Pid
   end.
+
+get_app_versions() ->
+  [{App, Vsn} || {App, _Desc, Vsn} <- application:which_applications()].
+
+get_app_version() ->
+  {ok, App} = application:get_application(?MODULE),
+  Apps = application:which_applications(),
+  {_Name, _Desc, Vsn} = lists:keyfind(App, 1, Apps),
+  list_to_binary(Vsn).
+
+get_node_uptime() ->
+  {Result, _} = erlang:statistics(wall_clock),
+  Result.
+
+sys_free_memory() ->
+  Info = memsup:get_system_memory_data(),
+  element(2, lists:keyfind(free_memory, 1, Info)).
+
+sys_total_memory() ->
+  Info = memsup:get_system_memory_data(),
+  element(2, lists:keyfind(total_memory, 1, Info)).
+ 
+os_type() ->
+  atom_to_list(element(1, os:type())).
+
+os_version() ->
+  atom_to_list(element(2, os:type())).

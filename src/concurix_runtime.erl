@@ -158,6 +158,9 @@ internal_start(Config, Options) ->
   application:start(ssl),
   application:start(timer),
 
+  application:start(sasl),
+  application:start(os_mon),
+
   ssl:start(),
 
   ok = application:start(concurix_runtime),
