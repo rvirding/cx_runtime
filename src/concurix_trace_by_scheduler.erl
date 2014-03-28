@@ -88,14 +88,15 @@ handle_system_profile(SysProfTable) ->
 -ifdef(DISABLE_CONCURIX_VM).
 concurix_sys_profile(undefined) ->
   undefined;
-concurix_sys_profile(Pid) ->
-  erlang:system_profile(SysProfPid, [concurix]).
+concurix_sys_profile(_Pid) ->
+  io:format("~nThe tracer is started but a Concurix feature was not found.~n"
+            "Upgrade to Concurix Erlang for more detailed tracing: http://www.concurix.com/main/products~n"
+            "This version will continue to work without the enhanced functionality.~n~n").
 
 -else.
 concurix_sys_profile(undefined) ->
-  undefined;
-concurix_sys_profile(_Pid) ->
-      io:format("~nThe tracer is started but a Concurix feature was not found.~n"
-                "Upgrade to Concurix Erlang for more detailed tracing: http://www.concurix.com/main/products~n"
-                "This version will continue to work without the enhanced functionality.~n~n").
+  erlang:system_profile(undefined, [concurix]);
+concurix_sys_profile(Pid) ->
+  erlang:system_profile(Pid, [concurix]).
+
 -endif.
