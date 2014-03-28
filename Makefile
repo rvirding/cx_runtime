@@ -9,6 +9,10 @@ ERLANG_DIALYZER_APPS = \
 	sasl \
 	mnesia
 
+# Enable/disable concurix vm (needed for dialyzer)
+# Use empty list if you want to enable.
+ERL_OPTS = "[{d,DISABLE_CONCURIX_VM,true}]"
+
 REBAR:=$(shell which rebar 2> /dev/null || echo ./rebar)
 
 DESTDIR              = /usr/local/lib/erlang
@@ -19,7 +23,7 @@ CXRUN_INSTALL_DIR    = $(DESTDIR)/lib/concurix_runtime-0.1
 all: erl
 
 erl:
-	$(REBAR) get-deps compile
+	$(REBAR) get-deps compile erl_opts=$ERL_OPTS
 
 test: all
 	@mkdir -p .eunit

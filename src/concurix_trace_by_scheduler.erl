@@ -30,17 +30,7 @@ start_link(State) ->
 init([State]) ->
   SysProfTable = State#tcstate.sys_prof_table,
   SysProfPid   = spawn_link(?MODULE, handle_system_profile, [SysProfTable]),
-
-  try erlang:system_profile(SysProfPid, [concurix])
-  catch
-    _Type:_Exception -> 
-      io:format("~n"),
-      io:format("The tracer is started but a Concurix feature was not found.~n"),
-      io:format("Upgrade to Concurix Erlang for more detailed tracing: http://www.concurix.com/main/products~n"),
-      io:format("This version will continue to work without the enhanced functionality.~n"),
-      io:format("~n")
-  end,
-
+  concurix_sys_profile(SysProfPid),
   {ok, undefined}.
 
 handle_call(_Call, _From, State) ->
@@ -50,7 +40,7 @@ handle_cast(_Msg, State) ->
   {noreply, State}.
  
 handle_info(stop_tracing,                           State) ->
-  erlang:system_profile(undefined, [concurix]),
+  concurix_sys_profile(undefined),
   {stop, normal, State};
 
 handle_info(_Msg, State) ->
@@ -95,3 +85,17 @@ handle_system_profile(SysProfTable) ->
   end.
  
 
+-ifdef(DISABLE_CONCURIX_VM).
+concurix_sys_profile(undefined) ->
+  undefined;
+concurix_sys_profile(Pid) ->
+  erlang:system_profile(SysProfPid, [concurix]).
+
+-else.
+concurix_sys_profile(undefined) ->
+  undefined;
+concurix_sys_profile(_Pid) ->
+      io:format("~nThe tracer is started but a Concurix feature was not found.~n"
+                "Upgrade to Concurix Erlang for more detailed tracing: http://www.concurix.com/main/products~n"
+                "This version will continue to work without the enhanced functionality.~n~n").
+-endif.
