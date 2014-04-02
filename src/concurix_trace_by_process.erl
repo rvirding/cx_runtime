@@ -16,21 +16,45 @@
 
 -behaviour(gen_server).
 
--export([start_link/1]).
+-export([start_link/1, reset_link_counters/0]).
 
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, 
+         code_change/3]).
 
 -include("concurix_runtime.hrl").
 
-start_link(State) ->
-  gen_server:start_link(?MODULE, [State], []).
 
+%%==============================================================================
+%% API functions
+%%==============================================================================
+
+%%------------------------------------------------------------------------------
+%% @doc Start the gen_server
+%%------------------------------------------------------------------------------
+-spec start_link(State) -> Result when
+  State :: #tcstate{},
+  Result :: {ok, pid()} | {error, any()}.
+start_link(State) ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [State], []).
+
+%%------------------------------------------------------------------------------
+%% @doc Reset the counters related to message communication
+%%------------------------------------------------------------------------------
+-spec reset_link_counters() -> ok.
+reset_link_counters() ->
+  gen_server:call(?MODULE, reset_link_counters).
+
+%%==============================================================================
+%% gen_server callbacks
+%%==============================================================================
 init([State]) ->
   %% This gen_server will receive the trace messages (i.e. invoke handle_info/2)
   erlang:trace(all, true, [procs, send, running, scheduler_id]),
 
   {ok, State}.
 
+handle_call(reset_link_counters, _Form, State) ->
+  {reply, do_reset_counters(State#tcstate.link_table), State};
 handle_call(_Call, _From, State) ->
   {reply, ok, State}.
 
@@ -137,7 +161,7 @@ handle_info({trace, Sender, send, Data, Recipient}, State) ->
 %%
 %% MDN It's surprising that this is happening in compiled Mandelbrot
 %%
-handle_info({trace, _Pid,  send_to_non_existing_process, _Msg, _To}, State) ->
+handle_info({trace, Pid,  send_to_non_existing_process, _Msg, _To}, State) ->
   {noreply, State};
 
 
@@ -171,6 +195,10 @@ handle_info(Msg,                                    State) ->
   io:format("~p:handle_info/2.  [Warning] Unsupported msg = ~p ~n", [?MODULE, Msg]),
   {noreply, State}.
 
+
+%%==============================================================================
+%% internal functions
+%%==============================================================================
 decode_anon_fun(Fun) ->
   Str = lists:flatten(io_lib:format("~p", [Fun])),
 
@@ -219,6 +247,12 @@ delete_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2)
 delete_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
   ets:delete_object(State#tcstate.proc_link_table, {Pid2, Pid1});
 delete_proc_link(_State, _Pid1, _Pid2) ->
+  ok.
+
+do_reset_counters(LinkTable) ->
+  ets:foldl(fun({Key, _, _, Start}, _) ->
+                ets:insert(LinkTable, {Key, 0, 0, Start})
+            end, [], LinkTable),
   ok.
 
 now_microseconds() ->

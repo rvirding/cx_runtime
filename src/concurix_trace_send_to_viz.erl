@@ -50,7 +50,11 @@ handle_info(send_to_viz, #tcstate{api_key = APIKey,
   
     Request = viz_make_post_http_request(Url, Json, APIKey),
 
-    httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
+	httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
+
+    %% After sending out the update to the server we have to reset the message
+    %% counters in the trace_by_process gen_server.
+    concurix_trace_by_process:reset_link_counters(),
     {noreply, State};
 
 handle_info(stop_updating,                  State) ->

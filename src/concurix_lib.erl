@@ -382,6 +382,7 @@ get_json_for_proxy(State) ->
                            end,
                            dict:new(),
                            Links),
+
   DisplayPid = State#tcstate.display_pid,
   NumCalls = fun (Pid) ->
                      case dict:find(Pid, CallTotals) of
@@ -416,12 +417,13 @@ get_json_for_proxy(State) ->
 
   TempLinks      = [ [{source,          pid_to_name(A)},
                       {target,          pid_to_name(B)},
-                      {type,            <<"message">>},
-                      {total_delay,     100}, % TODO fixme
+                      {type,            <<"invocation">>},
+                      {total_delay,     0}, % TODO fixme
                       {start,           Start},
                       {num_calls,       C},
                       {words_sent,      D}] 
-                        || {{A, B}, C, D, Start} <- Links],
+                        || {{A, B}, C, D, Start} <- Links], 
+
 
   ProcLinks       = [ [{source,         pid_to_name(A)},
                        {target,         pid_to_name(B)}]
