@@ -410,8 +410,11 @@ get_json_for_proxy(State) ->
                       {behaviour,       Behaviour},
                       {application,     pid_to_application(Pid)},
                       {num_calls,       NumCalls(Pid)},
-                      {duration,        1000}, % TODO fixme
-                      {child_duration,  100} % TODO this isn't even in the spec but is required for the dashboard to work
+                      {duration,        1000000 * concurix_trace_by_process:get_reduction(Pid) / 60000000}, % TODO fixme
+%%                      {duration,        concurix_trace_by_process:get_reduction(Pid)}, % TODO fixme
+
+                      {child_duration,  50} % TODO this isn't even in the spec but is required for the dashboard to work
+
                      ] ++ delta_info(State#tcstate.last_nodes, Pid)
                      || {Pid, {M, F, A}, Service, Scheduler, Behaviour} <- Procs],
 

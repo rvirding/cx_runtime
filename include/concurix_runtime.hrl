@@ -8,6 +8,7 @@
           link_table,
           sys_prof_table,
           proc_link_table,
+          reduction_table,
 
           last_nodes,
 

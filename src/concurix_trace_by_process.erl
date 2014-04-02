@@ -16,7 +16,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/1, reset_link_counters/0]).
+-export([start_link/1, reset_link_counters/0, get_reduction/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, 
          code_change/3]).
@@ -38,6 +38,13 @@ start_link(State) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [State], []).
 
 %%------------------------------------------------------------------------------
+%% Returns the number of reductions since the last call.
+%%------------------------------------------------------------------------------
+-spec get_reduction(Pid :: pid()) -> integer().
+get_reduction(Pid) ->
+  gen_server:call(?MODULE, {get_reduction, Pid}).
+
+%%------------------------------------------------------------------------------
 %% @doc Reset the counters related to message communication
 %%------------------------------------------------------------------------------
 -spec reset_link_counters() -> ok.
@@ -53,7 +60,9 @@ init([State]) ->
 
   {ok, State}.
 
-handle_call(reset_link_counters, _Form, State) ->
+handle_call({get_reduction, Pid}, _From, State) ->
+  {reply, do_get_reduction(State#tcstate.reduction_table, Pid), State};
+handle_call(reset_link_counters, _From, State) ->
   {reply, do_reset_counters(State#tcstate.link_table), State};
 handle_call(_Call, _From, State) ->
   {reply, ok, State}.
@@ -248,6 +257,22 @@ delete_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
   ets:delete_object(State#tcstate.proc_link_table, {Pid2, Pid1});
 delete_proc_link(_State, _Pid1, _Pid2) ->
   ok.
+
+do_get_reduction(Tab, Pid) ->
+  case (catch erlang:process_info(Pid, reductions)) of
+    {reductions, Current} ->
+      Old =
+        case ets:lookup(Tab, Pid) of
+          [{Pid, Value}] -> 
+            Value;
+          [] ->
+            0
+        end,
+      ets:insert(Tab, {Pid, Current}),
+      Current - Old;
+    _ ->
+      0
+  end.
 
 do_reset_counters(LinkTable) ->
   ets:foldl(fun({Key, _, _, Start}, _) ->

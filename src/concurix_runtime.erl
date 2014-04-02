@@ -104,6 +104,7 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
                        link_table           = setup_ets_table(cx_linkstats),
                        sys_prof_table       = setup_ets_table(cx_sysprof),
                        proc_link_table      = setup_ets_table(cx_proclink),
+                       reduction_table      = setup_ets_table(cx_reduction),
 
                        %% Tables to cache information from last snapshot
                        last_nodes           = ets:new(cx_lastnodes, [public, {keypos, 2}]),
