@@ -93,6 +93,7 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
   {ok, APIKey} = concurix_lib:config_option(Config, master, api_key),
   TraceMF = concurix_lib:config_option(Config, master, trace_mf, ?DEFAULT_TRACE_MF),
   DisplayPid = concurix_lib:config_option(Config, master, display_pid, false),
+  DisablePosts = concurix_lib:config_option(Config, master, disable_posts, false),
   TimerIntervalViz = 
     concurix_lib:config_option(Config, master, timer_interval_viz, 
                                ?DEFAULT_TIMER_INTERVAL_VIZ),
@@ -116,7 +117,8 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
                        trace_mf             = TraceMF,
                        api_key              = APIKey,
                        display_pid          = DisplayPid,
-                       timer_interval_viz   = TimerIntervalViz},
+                       timer_interval_viz   = TimerIntervalViz,
+                       disable_posts        = DisablePosts},
 
   fill_initial_tables(State),
   {ok, Sup} = concurix_trace_supervisor:start_link(State, Options),

@@ -38,7 +38,9 @@ handle_cast(_Msg, State) ->
  
 handle_info(send_to_viz, #tcstate{api_key = APIKey,
                                   send_updates = SendUpdates,
-                                  run_info = RunInfo} = State) ->
+                                  run_info = RunInfo,
+                                  disable_posts = DisablePosts} = State) ->
+
     if 
 	(SendUpdates == true) ->
 	    timer:send_after(State#tcstate.timer_interval_viz, send_to_viz);
@@ -47,11 +49,13 @@ handle_info(send_to_viz, #tcstate{api_key = APIKey,
 
     Url = binary_to_list(proplists:get_value(<<"trace_url">>, RunInfo)),
     Json = concurix_lib:get_current_json(State),
-  
-    Request = viz_make_post_http_request(Url, Json, APIKey),
-
-	httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]),
-
+ 
+    case DisablePosts of
+      false ->
+        send_request(Url, Json, APIKey);
+      _ ->
+        ok
+    end,
     %% After sending out the update to the server we have to reset the message
     %% counters in the trace_by_process gen_server.
     concurix_trace_by_process:reset_link_counters(),
@@ -77,3 +81,8 @@ viz_make_post_http_request(Url, Json, APIKey) ->
 	       {"content-type","application/json"},
 	       {"content-length",BinLen}],
     {Url,Headers,"application/json",Json}.
+
+send_request(Url, Json, APIKey) ->
+  Request = viz_make_post_http_request(Url, Json, APIKey),
+  httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]).
+

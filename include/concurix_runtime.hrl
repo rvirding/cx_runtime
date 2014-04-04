@@ -2,23 +2,24 @@
 
 -record(tcstate,
         {
-          run_info,
+          run_info                  :: proplist:proplist(),
 
-          process_table,
-          link_table,
-          sys_prof_table,
-          proc_link_table,
-          reduction_table,
+          process_table             :: ets:tid(),
+          link_table                :: ets:tid(),
+          sys_prof_table            :: ets:tid(),
+          proc_link_table           :: ets:tid(),
+          reduction_table           :: ets:tid(),
 
-          last_nodes,
+          last_nodes                :: ets:tid(),
 
-          trace_supervisor,
+          trace_supervisor          :: boolean(),
 
-          collect_trace_data,
-          send_updates,
-          trace_mf,
-          api_key,
-          display_pid,
-          timer_interval_viz
+          collect_trace_data        :: boolean(),
+          send_updates              :: boolean(),       
+          trace_mf                  :: {Mod :: atom(), Function :: atom()},
+          api_key                   :: string(),
+          display_pid               :: boolean(),
+          timer_interval_viz        :: integer(),
+          disable_posts             :: boolean()
         }).
 

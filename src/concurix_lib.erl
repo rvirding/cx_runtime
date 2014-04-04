@@ -384,9 +384,13 @@ get_json_for_proxy(State) ->
                            Links),
 
   DisplayPid = State#tcstate.display_pid,
+
+
   NumCalls = fun (Pid) ->
                      case dict:find(Pid, CallTotals) of
-                         {ok, Value} -> Value;
+                         {ok, Value} ->
+%                           display_totals(Pid, Value, num_calls),
+                           Value;
                          error -> 0
                      end
              end,
@@ -410,9 +414,7 @@ get_json_for_proxy(State) ->
                       {behaviour,       Behaviour},
                       {application,     pid_to_application(Pid)},
                       {num_calls,       NumCalls(Pid)},
-                      {duration,        1000000 * concurix_trace_by_process:get_reduction(Pid) / 60000000}, % TODO fixme
-%%                      {duration,        concurix_trace_by_process:get_reduction(Pid)}, % TODO fixme
-
+                      {duration,        calc_proc_duration(Pid)}, 
                       {child_duration,  50} % TODO this isn't even in the spec but is required for the dashboard to work
 
                      ] ++ delta_info(State#tcstate.last_nodes, Pid)
@@ -705,3 +707,18 @@ os_type() ->
 
 os_version() ->
   atom_to_list(element(2, os:type())).
+
+calc_proc_duration(Pid) ->
+ Result = 1000000 * concurix_trace_by_process:get_reduction(Pid) / 60000000,
+% display_totals(Pid, Result, duration),
+ Result.
+
+
+display_totals(Pid, Calls, Type) ->
+  case (catch process_info(Pid, registered_name)) of
+    {registered_name, Name} ->
+      io:format("~p ~p {Type, Name, Calls}: '~p' ~n", 
+                [?MODULE, ?LINE, {Type, Name, Calls}]);
+    _ ->
+      ok
+  end.
