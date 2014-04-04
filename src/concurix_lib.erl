@@ -6,7 +6,7 @@
 %% http://www.concurix.com/main/tos_main
 %%
 %% The Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. 
+%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.
 %%
 %% %CopyrightEnd%
 %%
@@ -37,13 +37,13 @@
 %%%=============================================================================
 
 %%------------------------------------------------------------------------------
-%% @doc 
+%% @doc
 %% Returns the value of the config option from a proplist stored within a
 %% an other proplist. The second parameter is the key within this larger
 %% proplist, the third is the key of the proplist inside.
 %% If not found the value of the last parameter is given back.
 %% @end
-%%------------------------------------------------------------------------------ 
+%%------------------------------------------------------------------------------
 -spec config_option(proplists:proplist(), atom(), atom(), term()) -> term().
 config_option(Config, Slot, Key, Default) ->
   case config_option(Config, Slot, Key) of
@@ -52,12 +52,12 @@ config_option(Config, Slot, Key, Default) ->
   end.
 
 %%------------------------------------------------------------------------------
-%% @doc 
+%% @doc
 %% Returns the value of the config option from a proplist stored within a
 %% an other proplist. The second parameter is the key within this larger
 %% proplist, the third is the key of the proplist inside.
 %% @end
-%%------------------------------------------------------------------------------ 
+%%------------------------------------------------------------------------------
 -spec config_option(proplists:proplist(), atom(), atom()) -> term().
 config_option([], _Slot, _Key) ->
   undefined;
@@ -66,6 +66,7 @@ config_option([{Slot, SlotConfig} | _Tail], Slot, Key) ->
 config_option([_Head | Tail], Slot, Key) ->
   config_option(Tail, Slot, Key).
 
+-spec config_option(maybe_improper_list(),_) -> 'undefined' | {'ok',_}.
 config_option([], _Key) ->
   undefined;
 config_option([{Key, Value} | _Tail], Key) ->
@@ -133,7 +134,7 @@ mod_to_service(Mod) ->
 %%------------------------------------------------------------------------------
 -spec mod_to_behaviours(Mod) -> Result when
   Mod :: atom() | string(),
-  Result :: nonempty_list(binary()). 
+  Result :: nonempty_list(binary()).
 mod_to_behaviours(unknown) ->
   [<<"undefined">>];
 mod_to_behaviours(port) ->
@@ -198,17 +199,17 @@ update_process_info([],        Acc) ->
 update_process_info([Pid | T], Acc) ->
   case local_process_info(Pid, initial_call) of
     {initial_call, MFA} ->
-      case MFA of 
+      case MFA of
         {proc_lib, init_p, _} ->
           {Mod, Fun, Arity} = local_translate_initial_call(Pid);
 
         {erlang, apply, _} ->
           %% we lost the original MFA, take a best guess from the current function
           case local_process_info(Pid, current_function) of
-            {current_function, {Mod, Fun, Arity}} -> 
+            {current_function, {Mod, Fun, Arity}} ->
               ok;
 
-            _ -> 
+            _ ->
               %%("got unknown current function results of ~p ~n", [X]),
               {Mod, Fun, Arity} = {erlang, apply, 0}
           end;
@@ -231,7 +232,7 @@ update_process_info([Pid | T], Acc) ->
 %%------------------------------------------------------------------------------
 %% @doc
 %% Returns the trace data as a json object converted to binary format.
-%% The name of the function which implements the calculation of the json 
+%% The name of the function which implements the calculation of the json
 %% object is specified in the config file. If not specified there,
 %% get_default_json/1 will be called.
 %% @end
@@ -240,13 +241,13 @@ update_process_info([Pid | T], Acc) ->
 get_current_json(#tcstate{trace_mf = TraceMF} = State) ->
   {Module, Function} = TraceMF,
   Module:Function(State).
-
 %%------------------------------------------------------------------------------
 %% @doc
 %% Default implementation of the function which calculates the output json.
 %% @end
 %%------------------------------------------------------------------------------
--spec get_default_json(State :: #tcstate{}) -> binary().
+-spec get_default_json(State :: #tcstate{}) ->
+  binary().
 get_default_json(State) ->
   ets:safe_fixtable(State#tcstate.process_table,  true),
   ets:safe_fixtable(State#tcstate.link_table,     true),
@@ -337,7 +338,7 @@ get_default_json(State) ->
   end,
 
   Send           = [{method, <<"Concurix.traces">>},
-                    {result, 
+                    {result,
                       [{type,              <<"erlang">>},
                       {version,           <<"0.1.4">>},
                       {run_id,            list_to_binary(Run_id)},
@@ -359,6 +360,7 @@ get_default_json(State) ->
 %% @end
 %%------------------------------------------------------------------------------
 -spec get_json_for_proxy(State :: #tcstate{}) -> binary().
+
 get_json_for_proxy(State) ->
   ets:safe_fixtable(State#tcstate.process_table,  true),
   ets:safe_fixtable(State#tcstate.link_table,     true),
@@ -400,7 +402,7 @@ get_json_for_proxy(State) ->
                       {pid,             ospid_to_b()},
                       {name,            pid_to_name(Pid)},
                       {module,[
-                        {top, get_module_name_b(DisplayPid, M, Pid)}, 
+                        {top, get_module_name_b(DisplayPid, M, Pid)},
                         {requireId, term_to_b(M)},
                         {id, mod_to_id(M)}
                       ]},
@@ -414,7 +416,7 @@ get_json_for_proxy(State) ->
                       {behaviour,       Behaviour},
                       {application,     pid_to_application(Pid)},
                       {num_calls,       NumCalls(Pid)},
-                      {duration,        calc_proc_duration(Pid)}, 
+                      {duration,        calc_proc_duration(Pid)},
                       {child_duration,  50} % TODO this isn't even in the spec but is required for the dashboard to work
 
                      ] ++ delta_info(State#tcstate.last_nodes, Pid)
@@ -426,8 +428,8 @@ get_json_for_proxy(State) ->
                       {total_delay,     0}, % TODO fixme
                       {start,           Start},
                       {num_calls,       C},
-                      {words_sent,      D}] 
-                        || {{A, B}, C, D, Start} <- Links], 
+                      {words_sent,      D}]
+                        || {{A, B}, C, D, Start} <- Links],
 
 
   ProcLinks       = [ [{source,         pid_to_name(A)},
@@ -443,7 +445,7 @@ get_json_for_proxy(State) ->
                       {tail_call_count, Tail},
                       {return_count,    Return},
                       {process_free,    Free}] ||
-                      {Id, {[{concurix, Create, QCount, QTime, Send, 
+                      {Id, {[{concurix, Create, QCount, QTime, Send,
                               GC, True, Tail, Return, Free}], _, _}} <- RawSys ],
 
 %  Run_id         = binary_to_list(proplists:get_value(<<"run_id">>, State#tcstate.run_info)),
@@ -502,12 +504,16 @@ get_json_for_proxy(State) ->
 %%%=============================================================================
 %%% Internal functions
 %%%=============================================================================
+-spec pid_to_name(Pid :: pid()) -> binary().
 pid_to_name(Pid) ->
   << (ospid_to_b())/binary, ":", (pid_to_b(Pid))/binary >>.
 
+-spec ospid_to_b() -> binary().
 ospid_to_b() ->
   list_to_binary(os:getpid()).
 
+-spec pid_to_b(pid()) ->
+  binary().
 pid_to_b(Pid) ->
   list_to_binary(lists:flatten(io_lib:format("~p", [Pid]))).
 
@@ -520,7 +526,7 @@ term_to_b(Val) when is_list(Val) ->
       list_to_binary(Val);
     false ->
       [ term_to_b(X) || X <- Val]
-  end; 
+  end;
 
 term_to_b(Term) ->
   list_to_binary(lists:flatten(io_lib:format("~p", [Term]))).
@@ -573,7 +579,7 @@ local_process_info(Pid, total_heap_size) when is_pid(Pid) ->
 local_process_info(Pid, initial_call) when is_port(Pid) ->
   Info = erlang:port_info(Pid),
   {initial_call, {port, proplists:get_value(name, Info), 0}};
-  
+
 local_process_info(Pid, message_queue_len) when is_port(Pid) ->
   {message_queue_len, 0};
 
@@ -588,6 +594,7 @@ local_process_info(Pid, message_queue_len) when is_pid(Pid) ->
 local_process_info({Pid, _X}, Key)     ->
   local_process_info(Pid, Key).
 
+-spec mod_to_id(atom() | string()) -> binary().
 mod_to_id(Mod) when is_list(Mod) ->
     mod_to_id(list_to_atom(Mod)); % TODO trackdown the source of these string module names
 mod_to_id(Mod) when is_atom(Mod) ->
@@ -598,6 +605,7 @@ mod_to_id(Mod) when is_atom(Mod) ->
             list_to_binary(atom_to_list(Mod))
     end.
 
+-spec pid_to_application(any()) -> binary().
 pid_to_application(Pid) when is_pid(Pid), node(Pid) =:= node() ->
   case application:get_application(Pid) of
     undefined -> <<"undefined">>;
@@ -623,13 +631,14 @@ delta_info(LastNodes, Pid) ->
 %%
 %%
 %%
+-spec path_to_service('preloaded' | string()) -> 'preloaded' | string().
 path_to_service(preloaded) ->
   preloaded;
 
 path_to_service(Path) ->
   Tokens = string:tokens(Path, "/"),
 
-  case lists:reverse(Tokens) of 
+  case lists:reverse(Tokens) of
     [_, "ebin", Service | _] ->
       Service;
 
@@ -640,6 +649,7 @@ path_to_service(Path) ->
       Path
   end.
 
+-spec now_seconds() -> non_neg_integer().
 now_seconds() ->
     {Mega, Secs, _}= now(),
     Mega*1000000 + Secs.
@@ -649,9 +659,13 @@ get_hostname() ->
   {ok, HostName} = inet:gethostname(),
   list_to_binary(HostName).
 
+-spec merge_run_info([{binary(),_}],_) ->
+  [{binary(),_}].
 merge_run_info(Remote, Local) ->
     merge_run_info(Remote, Local, []).
 
+-spec merge_run_info([{binary(),_}],_,[{binary(),_}]) ->
+  [{binary(),_}].
 merge_run_info([], _Local, Res) ->
     Res;
 merge_run_info([{K, V} | T], Local, Res) ->
@@ -675,49 +689,65 @@ get_module_name_b(true = _DisplayPid, M, Pid) ->
   ProcNameBin = term_to_b(try_get_regname(Pid)),
   <<ModBin/binary, <<"/">>/binary, ProcNameBin/binary>>.
 
+-spec try_get_regname(_) -> any().
 try_get_regname(Pid) ->
   case (catch process_info(Pid, registered_name)) of
     {registered_name, Name} -> Name;
     _ -> Pid
   end.
 
+-spec get_app_versions() ->
+  [{atom(),[any()]}].
 get_app_versions() ->
   [{App, Vsn} || {App, _Desc, Vsn} <- application:which_applications()].
 
+-spec get_app_version() ->
+  binary().
 get_app_version() ->
   {ok, App} = application:get_application(?MODULE),
   Apps = application:which_applications(),
   {_Name, _Desc, Vsn} = lists:keyfind(App, 1, Apps),
   list_to_binary(Vsn).
 
+-spec get_node_uptime() ->
+  non_neg_integer().
 get_node_uptime() ->
   {Result, _} = erlang:statistics(wall_clock),
   Result.
 
+-spec sys_free_memory() ->
+  any().
 sys_free_memory() ->
   Info = memsup:get_system_memory_data(),
   element(2, lists:keyfind(free_memory, 1, Info)).
 
+-spec sys_total_memory() ->
+  any().
 sys_total_memory() ->
   Info = memsup:get_system_memory_data(),
   element(2, lists:keyfind(total_memory, 1, Info)).
- 
+
+-spec os_type() ->
+  string().
 os_type() ->
   atom_to_list(element(1, os:type())).
 
+-spec os_version() ->
+  string().
 os_version() ->
   atom_to_list(element(2, os:type())).
 
+-spec calc_proc_duration(pid()) ->
+  float().
 calc_proc_duration(Pid) ->
  Result = 1000000 * concurix_trace_by_process:get_reduction(Pid) / 60000000,
 % display_totals(Pid, Result, duration),
  Result.
 
-
 display_totals(Pid, Calls, Type) ->
   case (catch process_info(Pid, registered_name)) of
     {registered_name, Name} ->
-      io:format("~p ~p {Type, Name, Calls}: '~p' ~n", 
+      io:format("~p ~p {Type, Name, Calls}: '~p' ~n",
                 [?MODULE, ?LINE, {Type, Name, Calls}]);
     _ ->
       ok

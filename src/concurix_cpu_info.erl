@@ -2,6 +2,7 @@
 
 -export([get_cpu_info/0, get_load_avg/0, get_cpu_times/0]).
 
+-spec get_cpu_info() -> {'error','not_linux'} | {'ok',[[{_,_},...]]}.
 get_cpu_info() ->
     case os:type() of
         {unix, linux} ->
@@ -11,6 +12,7 @@ get_cpu_info() ->
             {error, not_linux}
     end.
 
+-spec get_load_avg() -> {'error','not_linux'} | {'ok',[[[any()] | char()] | char(),...]}.
 get_load_avg() ->
     case os:type() of
         {unix, linux} ->
@@ -21,6 +23,7 @@ get_load_avg() ->
             {error, not_linux}
     end.
 
+-spec get_cpu_times() -> {'error','not_linux'} | {'ok',[{[any()] | char(),[any(),...]}]}.
 get_cpu_times() ->
     case os:type() of
         {unix, linux} ->
@@ -32,9 +35,11 @@ get_cpu_times() ->
 
 % ---------- internal ----------
 
+-spec parse_cpu_fields([binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | non_neg_integer(),binary() | [])]) -> [{'id',integer()} | {'model',binary() | maybe_improper_list(any(),binary() | [])} | {'speed',float()}].
 parse_cpu_fields(RawInfo) ->
     parse_cpu_fields(RawInfo, []).
 
+-spec parse_cpu_fields([binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | non_neg_integer(),binary() | [])],[{'id',integer()} | {'model',binary() | maybe_improper_list(any(),binary() | [])} | {'speed',float()}]) -> [{'id',integer()} | {'model',binary() | maybe_improper_list(any(),binary() | [])} | {'speed',float()}].
 parse_cpu_fields([], Fields) ->
     Fields;
 parse_cpu_fields([<<>> | Lines], Fields) ->
@@ -47,6 +52,7 @@ parse_cpu_fields([Line | Lines], Fields) ->
         end,
     parse_cpu_fields(Lines, Field ++ Fields).
 
+-spec parse_cpu_field(binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | non_neg_integer(),binary() | []),binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | non_neg_integer(),binary() | [])) -> [{'id',integer()} | {'model',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | non_neg_integer(),binary() | [])} | {'speed',float()}].
 parse_cpu_field(<<"processor">>, Value) ->
     [{id, list_to_integer(binary_to_list(Value))}];
 parse_cpu_field( <<"model name">>, Value) ->
@@ -56,9 +62,11 @@ parse_cpu_field(<<"cpu MHz">>, Value) ->
 parse_cpu_field(_, _) ->
     []. % ignore other fields for now
 
+-spec group_cpus([{'id',integer()} | {'model',binary() | maybe_improper_list(any(),binary() | [])} | {'speed',float()}]) -> [[{_,_},...]].
 group_cpus(Fields) ->
     group_cpus(Fields, [], []).
 
+-spec group_cpus([{'id',integer()} | {'model',binary() | maybe_improper_list(any(),binary() | [])} | {'speed',float()}],[{'id',integer()} | {'model',binary() | maybe_improper_list(any(),binary() | [])} | {'speed',float()}],[[{_,_},...]]) -> [[{_,_},...]].
 group_cpus([], [], Cpus) -> % {id, _} is always at the end of the list so Cpu should be empty
     Cpus;
 group_cpus([Field = {id, _Id} | Fields], Cpu, Cpus) ->
@@ -66,9 +74,11 @@ group_cpus([Field = {id, _Id} | Fields], Cpu, Cpus) ->
 group_cpus([Field | Fields], Cpu, Cpus) ->
     group_cpus(Fields, [Field | Cpu], Cpus).
 
+-spec parse_times([nonempty_string()]) -> [{[any()] | char(),[any(),...]}].
 parse_times(Lines) ->
     parse_times(Lines, []).
 
+-spec parse_times([nonempty_string()],[{[any()] | char(),[any(),...]}]) -> [{[any()] | char(),[any(),...]}].
 parse_times([], Cpus) ->
     Cpus;
 parse_times([Line | Lines], Cpus) ->

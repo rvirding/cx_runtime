@@ -6,7 +6,7 @@
 %% http://www.concurix.com/main/tos_main
 %%
 %% The Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. 
+%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.
 %%
 %% %CopyrightEnd%
 %%
@@ -22,6 +22,7 @@
 
 -include("concurix_runtime.hrl").
 
+-spec start_link(_) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(State) ->
   gen_server:start_link(?MODULE, [State], []).
 
@@ -29,19 +30,20 @@ init([State]) ->
   timer:send_after(State#tcstate.timer_interval_viz, send_to_viz),
 
   {ok, State}.
- 
+
 handle_call(_Call, _From, State) ->
   {reply, ok, State}.
 
 handle_cast(_Msg, State) ->
   {noreply, State}.
- 
+
+
 handle_info(send_to_viz, #tcstate{api_key = APIKey,
                                   send_updates = SendUpdates,
                                   run_info = RunInfo,
                                   disable_posts = DisablePosts} = State) ->
 
-    if 
+    if
 	(SendUpdates == true) ->
 	    timer:send_after(State#tcstate.timer_interval_viz, send_to_viz);
 	true -> ok
@@ -49,7 +51,7 @@ handle_info(send_to_viz, #tcstate{api_key = APIKey,
 
     Url = binary_to_list(proplists:get_value(<<"trace_url">>, RunInfo)),
     Json = concurix_lib:get_current_json(State),
- 
+
     case DisablePosts of
       false ->
         send_request(Url, Json, APIKey);
@@ -70,18 +72,19 @@ handle_info(Msg,                            State) ->
 
 terminate(_Reason, _State) ->
   ok.
- 
+
 code_change(_oldVsn, State, _Extra) ->
   {ok, State}.
 
 viz_make_post_http_request(Url, Json, APIKey) ->
     BinLen = io_lib:write(iolist_size(Json)),
-    
+
     Headers = [{"Concurix-API-Key", APIKey},
 	       {"content-type","application/json"},
 	       {"content-length",BinLen}],
     {Url,Headers,"application/json",Json}.
 
+-spec send_request([byte()],binary(),'undefined' | string()) -> any().
 send_request(Url, Json, APIKey) ->
   Request = viz_make_post_http_request(Url, Json, APIKey),
   httpc:request(post, Request, [{timeout, 60000}], [{sync, true}]).

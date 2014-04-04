@@ -6,7 +6,7 @@
 %% http://www.concurix.com/main/tos_main
 %%
 %% The Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. 
+%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.
 %%
 %% %CopyrightEnd%
 %%
@@ -18,9 +18,13 @@
 
 -export([start_link/0, stop/0, init/1]).
 
+-spec start_link() ->
+  'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
   supervisor:start_link(?MODULE, []).
 
+-spec stop() ->
+  'ok'.
 stop() ->
   ok.
 

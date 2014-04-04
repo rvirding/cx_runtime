@@ -6,7 +6,7 @@
 %% http://www.concurix.com/main/tos_main
 %%
 %% The Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. 
+%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.
 %%
 %% %CopyrightEnd%
 %%
@@ -18,7 +18,7 @@
 
 -export([start_link/1, reset_link_counters/0, get_reduction/1]).
 
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, 
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
 -include("concurix_runtime.hrl").
@@ -69,20 +69,20 @@ handle_call(_Call, _From, State) ->
 
 handle_cast(_Msg, State) ->
   {noreply, State}.
- 
+
 terminate(_Reason, _State) ->
   ok.
- 
+
 code_change(_oldVsn, State, _Extra) ->
   {ok, State}.
- 
+
 %%
-%% This gen_server will receive the trace messages 
+%% This gen_server will receive the trace messages
 %%
 %% Handle process creation and destruction
 %%
 handle_info({trace, Creator, spawn, Pid, Data}, State) ->
-  case Data of 
+  case Data of
     {proc_lib, init_p, _ProcInfo} ->
       {Mod, Fun, Arity} = concurix_lib:local_translate_initial_call(Pid),
       ok;
@@ -137,7 +137,6 @@ handle_info({trace, Pid, exit, _Reason}, State) ->
 %%
 %% These messages are sent when a Process is started/stopped on a given scheduler
 %%
-
 handle_info({trace, Pid, in,  Scheduler, _MFA}, State) ->
   update_proc_scheduler(Pid, Scheduler, State),
   {noreply, State};
@@ -145,7 +144,6 @@ handle_info({trace, Pid, in,  Scheduler, _MFA}, State) ->
 handle_info({trace, Pid, out, Scheduler, _MFA}, State) ->
   update_proc_scheduler(Pid, Scheduler, State),
   {noreply, State};
-
 
 %%
 %% Track messages sent
@@ -220,7 +218,7 @@ decode_anon_fun(Fun) ->
   end,
 
   {Mod, Str, 0}.
- 
+
 update_proc_table(Pid, State) ->
   case ets:lookup(State#tcstate.process_table, Pid) of
     [] ->
@@ -232,7 +230,7 @@ update_proc_table(Pid, State) ->
   end.
 
 update_proc_scheduler(Pid, Scheduler, State) ->
-  case ets:lookup(State#tcstate.process_table, Pid) of 
+  case ets:lookup(State#tcstate.process_table, Pid) of
     [] ->
       %% we don't have it yet, wait until we get the create message
       ok;
@@ -244,6 +242,8 @@ update_proc_scheduler(Pid, Scheduler, State) ->
       io:format("yikes, corrupt proc table ~p ~n", [X])
   end.
 
+-spec insert_proc_link(#tcstate{}, pid(), pid()) ->
+  'ok' | 'true'.
 insert_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
   ets:insert(State#tcstate.proc_link_table, {Pid1, Pid2});
 insert_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
@@ -251,6 +251,8 @@ insert_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
 insert_proc_link(_State, _Pid1, _Pid2) ->
   ok.
 
+-spec delete_proc_link(#tcstate{}, pid(), pid()) ->
+  'ok' | 'true'.
 delete_proc_link(State, Pid1, Pid2) when Pid1 < Pid2; is_pid(Pid1); is_pid(Pid2) ->
   ets:delete_object(State#tcstate.proc_link_table, {Pid1, Pid2});
 delete_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
@@ -258,12 +260,14 @@ delete_proc_link(State, Pid1, Pid2) when is_pid(Pid1); is_pid(Pid2)->
 delete_proc_link(_State, _Pid1, _Pid2) ->
   ok.
 
+-spec do_get_reduction(ets:tid(), pid()) ->
+  number().
 do_get_reduction(Tab, Pid) ->
   case (catch erlang:process_info(Pid, reductions)) of
     {reductions, Current} ->
       Old =
         case ets:lookup(Tab, Pid) of
-          [{Pid, Value}] -> 
+          [{Pid, Value}] ->
             Value;
           [] ->
             0
@@ -274,12 +278,16 @@ do_get_reduction(Tab, Pid) ->
       0
   end.
 
+-spec do_reset_counters(ets:tid()) ->
+  'ok'.
 do_reset_counters(LinkTable) ->
   ets:foldl(fun({Key, _, _, Start}, _) ->
                 ets:insert(LinkTable, {Key, 0, 0, Start})
             end, [], LinkTable),
   ok.
 
+-spec now_microseconds() ->
+  non_neg_integer().
 now_microseconds() ->
   {Mega, Sec, Micro} = now(),
   (Mega * 1000000 * 100000) + (Sec * 1000000) + Micro.

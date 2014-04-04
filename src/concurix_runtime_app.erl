@@ -6,7 +6,7 @@
 %% http://www.concurix.com/main/tos_main
 %%
 %% The Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. 
+%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.
 %%
 %% %CopyrightEnd%
 %%
@@ -17,8 +17,12 @@
 
 -export([start/2, stop/1]).
 
+-spec start(_,_) ->
+  'ignore' | {'error',_} | {'ok',pid()}.
 start(_StartType, _StartArgs) ->
   concurix_runtime_sup:start_link().
 
+-spec stop(_) ->
+  'ok'.
 stop(_State) ->
   concurix_runtime_sup:stop().

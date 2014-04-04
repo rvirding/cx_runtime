@@ -6,7 +6,7 @@
 %% http://www.concurix.com/main/tos_main
 %%
 %% The Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. 
+%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.
 %%
 %% %CopyrightEnd%
 %%
@@ -24,6 +24,10 @@
 
 -include("concurix_runtime.hrl").
 
+%%==============================================================================
+%% API functions
+%%==============================================================================
+
 start_link(State) ->
   gen_server:start_link(?MODULE, [State], []).
 
@@ -38,7 +42,7 @@ handle_call(_Call, _From, State) ->
 
 handle_cast(_Msg, State) ->
   {noreply, State}.
- 
+
 handle_info(stop_tracing,                           State) ->
   concurix_sys_profile(undefined),
   {stop, normal, State};
@@ -48,16 +52,16 @@ handle_info(_Msg, State) ->
 
 terminate(_Reason, _State) ->
   ok.
- 
+
 code_change(_oldVsn, State, _Extra) ->
   {ok, State}.
 
 %%
 %% The Concurix system profiler
 %%
-%% Each scheduler sends a message at a standard interval, currently every 2 seconds, 
+%% Each scheduler sends a message at a standard interval, currently every 2 seconds,
 %% that provides a snapshot of the activity that occured during the most recent interval (window).
-%% 
+%%
 %% The Stats element is the tuple
 %%     'concurix',
 %%     number of processes created
@@ -72,7 +76,7 @@ code_change(_oldVsn, State, _Extra) ->
 %%
 %% The message also indicates the start/end time for the sample
 %%
- 
+
 handle_system_profile(SysProfTable) ->
   receive
     { profile, concurix, SchedulerId,  SchedulerStats, WindowStart, WindowStop } ->
@@ -83,7 +87,7 @@ handle_system_profile(SysProfTable) ->
       io:format("OTHER:    ~p~n", [Other]),
       handle_system_profile(SysProfTable)
   end.
- 
+
 
 -ifdef(DISABLE_CONCURIX_VM).
 concurix_sys_profile(undefined) ->

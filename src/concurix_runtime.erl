@@ -6,7 +6,7 @@
 %% http://www.concurix.com/main/tos_main
 %%
 %% The Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. 
+%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.
 %%
 %% %CopyrightEnd%
 %%
@@ -18,7 +18,7 @@
 
 -export([start/0, start/2, start_link/0, stop/0]).
 
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 -include("concurix_runtime.hrl").
@@ -36,7 +36,8 @@
 %% a concurix server, and it will be used during the tracing.
 %% @end
 %%------------------------------------------------------------------------------
--spec start() -> {ok, pid()} | {error, Reason :: term()}. 
+-spec start() -> {ok, pid()} | {error, Reason :: term()}.
+
 start() ->
   application:start(inets),
   Result = httpc:request("http://concurix.com/bench/get_config_download/benchcode-381"),
@@ -59,7 +60,8 @@ start() ->
 -spec start(FileName, Options) -> {ok, pid()} | {error, Reason :: term()} when
   FileName :: file:name_all(),
   Options :: list().
-start(Filename, Options) -> 
+
+start(Filename, Options) ->
   {ok, CWD}           = file:get_cwd(),
   Dirs                = code:get_path(),
 
@@ -70,6 +72,7 @@ start(Filename, Options) ->
 %% @doc stop tracing
 %%------------------------------------------------------------------------------
 -spec stop() -> ok.
+
 stop() ->
   gen_server:call(?MODULE, stop_tracer),
   ok.
@@ -78,6 +81,7 @@ stop() ->
 %% @doc Start the gen_server
 %%------------------------------------------------------------------------------
 -spec start_link() -> {ok, pid()}.
+
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -94,12 +98,12 @@ handle_call({start_tracer, RunInfo, Options, Config},  _From, undefined) ->
   TraceMF = concurix_lib:config_option(Config, master, trace_mf, ?DEFAULT_TRACE_MF),
   DisplayPid = concurix_lib:config_option(Config, master, display_pid, false),
   DisablePosts = concurix_lib:config_option(Config, master, disable_posts, false),
-  TimerIntervalViz = 
-    concurix_lib:config_option(Config, master, timer_interval_viz, 
+  TimerIntervalViz =
+    concurix_lib:config_option(Config, master, timer_interval_viz,
                                ?DEFAULT_TIMER_INTERVAL_VIZ),
 
   State     = #tcstate{run_info             = RunInfo,
-                       %% Tables to communicate between data collectors 
+                       %% Tables to communicate between data collectors
                        %% and data transmitters
                        process_table        = setup_ets_table(cx_procinfo),
                        link_table           = setup_ets_table(cx_linkstats),
@@ -139,6 +143,7 @@ handle_call(stop_tracer, _From, State) ->
 %%==============================================================================
 %% Internal funtions
 %%==============================================================================
+-spec tracer_is_enabled(list()) -> boolean().
 tracer_is_enabled(Options) ->
   tracer_is_enabled(Options, [ msg_trace, enable_sys_profile, enable_send_to_viz ]).
 
@@ -154,6 +159,7 @@ tracer_is_enabled([Head | Tail], TracerOptions) ->
       tracer_is_enabled(Tail, TracerOptions)
   end.
 
+-spec internal_start([any()],maybe_improper_list()) -> any().
 internal_start(Config, Options) ->
   application:start(crypto),
   application:start(inets),
@@ -189,6 +195,7 @@ internal_start(Config, Options) ->
 %%                  {policy,           "<AWS generated string>"},
 %%                  {signature,        "<AWS generated string>"}]}]
 
+-spec get_run_info([atom() | tuple()]) -> [{binary(),_}].
 get_run_info(Config) ->
   { ok, Server } = concurix_lib:config_option(Config, master, concurix_server),
   { ok, APIkey } = concurix_lib:config_option(Config, master, api_key),
@@ -196,7 +203,7 @@ get_run_info(Config) ->
   Url            = "http://" ++ Server ++ "/bench/new_offline_run/" ++ APIkey,
   Reply          = httpc:request(Url),
 
-  LocalRunInfo = 
+  LocalRunInfo =
     case concurix_lib:config_option(Config, master, run_info) of
         undefined -> [];
         {ok, Value} -> Value
@@ -210,6 +217,7 @@ get_run_info(Config) ->
       keys_to_b(LocalRunInfo)
   end.
 
+-spec eval_string(nonempty_string()) -> any().
 eval_string(Incoming_String) ->
   String = case lists:last(Incoming_String) of
     $. -> Incoming_String;
@@ -219,20 +227,26 @@ eval_string(Incoming_String) ->
   {_Status, Term} = erl_parse:parse_term(Tokens),
   Term.
 
+-spec setup_ets_table(Table) -> Result when
+  Table :: 'cx_linkstats' | 'cx_procinfo' | 'cx_proclink' |
+           'cx_reduction' | 'cx_sysprof',
+  Result :: atom() | ets:tid().
 setup_ets_table(T) ->
   case ets:info(T) of
     undefined ->
       ets:new(T, [public]);
 
-    _ -> 
-      ets:delete_all_objects(T), 
+    _ ->
+      ets:delete_all_objects(T),
       T
   end.
 
+-spec handle_cast(_,_) -> {'noreply',_}.
 handle_cast(_Msg, State) ->
   {noreply, State}.
- 
 
+
+-spec handle_info(_,_) -> {'noreply',_}.
 handle_info(_Msg, State) ->
   {noreply, State}.
 
@@ -242,7 +256,8 @@ terminate(_Reason, State) ->
   ets:delete(State#tcstate.sys_prof_table),
   ets:delete(State#tcstate.proc_link_table),
   ok.
- 
+
+-spec code_change(_,_,_) -> {'ok',_}.
 code_change(_oldVsn, State, _Extra) ->
   {ok, State}.
 
@@ -254,11 +269,15 @@ fill_initial_tables(State) ->
   Processes = processes(),
   fill_initial_proctable(State#tcstate.process_table, Processes),
   fill_initial_proclinktable(State#tcstate.proc_link_table, Processes).
-  
+
+-spec fill_initial_proctable('undefined' | ets:tid(),[pid()]) ->
+  'ok'.
 fill_initial_proctable(Table, Processes) ->
   ProcList = concurix_lib:update_process_info(Processes, []),
   lists:foreach(fun(P) -> ets:insert(Table, P) end, ProcList).
-  
+
+-spec fill_initial_proclinktable('undefined' | ets:tid(),[pid()]) ->
+  'ok'.
 fill_initial_proclinktable(_Table, []) ->
   ok;
 fill_initial_proclinktable(Table, [P | Tail]) ->
@@ -268,7 +287,8 @@ fill_initial_proclinktable(Table, [P | Tail]) ->
     get_proc_links(P)
     ),
   fill_initial_proclinktable(Table, Tail).
-  
+
+-spec get_proc_links(pid()) -> [pid()].
 get_proc_links(Proc) ->
   %% Returns a list of linked processes.
   case concurix_lib:careful_process_info(Proc, links) of
@@ -278,5 +298,6 @@ get_proc_links(Proc) ->
       []
   end.
 
+-spec keys_to_b([any()]) -> [{binary(),_}].
 keys_to_b(L) ->
   [{list_to_binary(atom_to_list(K)), V} || {K, V} <- L].
